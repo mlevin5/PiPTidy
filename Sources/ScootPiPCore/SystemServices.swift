@@ -21,23 +21,47 @@ private func size(_ value: AXValue?) -> CGSize? { guard let value else { return 
 
 public final class SystemAXService: AXInventoryProviding, WindowMutating, @unchecked Sendable {
     private let log = Logger(subsystem: "app.scootpip.ScootPiP", category: "mutation")
+    private let enumerationLog = Logger(subsystem: "app.scootpip.ScootPiP", category: "enumeration")
     public init() {}
     public func enumerate() throws -> [AXWindowSnapshot] {
         guard AXIsProcessTrusted() else { throw AccessibilityError.notAuthorized }
         var output: [AXWindowSnapshot] = []
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy != .prohibited {
             let root = AXUIElementCreateApplication(app.processIdentifier)
-            guard let windows = try attribute(root, kAXWindowsAttribute as CFString, as: [AXUIElement].self) else { continue }
+            let windows: [AXUIElement]
+            do {
+                guard let appWindows = try attribute(root, kAXWindowsAttribute as CFString, as: [AXUIElement].self) else { continue }
+                windows = appWindows
+            } catch {
+                enumerationLog.debug("Skipping unresponsive application pid \(app.processIdentifier): \(String(describing: error), privacy: .public)")
+                continue
+            }
             for (index, window) in windows.enumerated() {
-                let p = point(try attribute(window, kAXPositionAttribute as CFString, as: AXValue.self))
-                let s = size(try attribute(window, kAXSizeAttribute as CFString, as: AXValue.self))
+                let p = point(safelyRead(window, kAXPositionAttribute as CFString, as: AXValue.self, pid: app.processIdentifier))
+                let s = size(safelyRead(window, kAXSizeAttribute as CFString, as: AXValue.self, pid: app.processIdentifier))
                 var movable = DarwinBoolean(false), resizable = DarwinBoolean(false)
                 AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
                 AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
-                output.append(.init(id: "\(app.processIdentifier):\(index)", pid: app.processIdentifier, owner: app.localizedName ?? "Unknown", title: try attribute(window, kAXTitleAttribute as CFString, as: String.self), role: try attribute(window, kAXRoleAttribute as CFString, as: String.self), subrole: try attribute(window, kAXSubroleAttribute as CFString, as: String.self), frame: p.flatMap { p in s.map { CGRect(origin: p, size: $0) } }, capabilities: .init(movable: movable.boolValue, resizable: resizable.boolValue)))
+                output.append(.init(
+                    id: "\(app.processIdentifier):\(index)",
+                    pid: app.processIdentifier,
+                    owner: app.localizedName ?? "Unknown",
+                    title: safelyRead(window, kAXTitleAttribute as CFString, as: String.self, pid: app.processIdentifier),
+                    role: safelyRead(window, kAXRoleAttribute as CFString, as: String.self, pid: app.processIdentifier),
+                    subrole: safelyRead(window, kAXSubroleAttribute as CFString, as: String.self, pid: app.processIdentifier),
+                    frame: p.flatMap { p in s.map { CGRect(origin: p, size: $0) } },
+                    capabilities: .init(movable: movable.boolValue, resizable: resizable.boolValue)
+                ))
             }
         }
         return output
+    }
+    private func safelyRead<T>(_ element: AXUIElement, _ name: CFString, as: T.Type, pid: pid_t) -> T? {
+        do { return try attribute(element, name, as: T.self) }
+        catch {
+            enumerationLog.debug("Ignoring failed window attribute for pid \(pid): \(String(describing: error), privacy: .public)")
+            return nil
+        }
     }
     public func setFrame(id: String, frame: CGRect) throws {
         let parts = id.split(separator: ":")
