@@ -1,0 +1,12 @@
+import XCTest
+@testable import ScootPiPCore
+
+final class CoreTests:XCTestCase {
+    func testCoordinateRoundTripAcrossNegativeDesktop(){let desktop=CGRect(x:-1440,y:-900,width:4480,height:2860);let r=CGRect(x:-1000,y:200,width:640,height:360);XCTAssertEqual(CoordinateConverter.globalTopLeftToAppKit(CoordinateConverter.appKitToGlobalTopLeft(r,desktop:desktop),desktop:desktop),r)}
+    func testRetinaUsesPointsNotPixels(){let s=ScreenGeometry(frame:CGRect(x:0,y:0,width:1512,height:982),visibleFrame:CGRect(x:0,y:40,width:1512,height:900),scale:2);XCTAssertEqual(s.visibleFrame.width,1512)}
+    func testClampAndCorners(){let v=CGRect(x:-100,y:20,width:1000,height:700);let r=CoordinateConverter.corner(1,size:CGSize(width:300,height:200),visible:v);XCTAssertEqual(r.maxX,v.maxX-12);XCTAssertTrue(v.contains(r))}
+    func testScoringAndTieDeterminism(){let s=DefaultCandidateScorer();let good=AXWindowSnapshot(id:"a",pid:1,owner:"Browser",subrole:"AXFloatingWindow",frame:CGRect(x:0,y:0,width:480,height:270),capabilities:.init(movable:true,resizable:true));let bad=AXWindowSnapshot(id:"b",pid:1,owner:"Browser",frame:CGRect(x:0,y:0,width:50,height:1200));XCTAssertGreaterThan(s.score(good,cg:nil).total,s.score(bad,cg:nil).total);XCTAssertEqual(s.score(good,cg:nil),s.score(good,cg:nil))}
+    func testCorrelationRejectsAmbiguity(){let a=AXWindowSnapshot(id:"a",pid:7,owner:"x",frame:CGRect(x:1,y:2,width:3,height:4));let c=CGWindowSnapshot(id:1,pid:7,owner:"x",frame:a.frame!,layer:1);XCTAssertNil(WindowCorrelator.match(a,cg:[c,c]));XCTAssertEqual(WindowCorrelator.match(a,cg:[c])?.id,1)}
+    func testPlacementSearchesEveryCellAndMaximizesSize(){var costs=[Float](repeating:10,count:100);for y in 2..<8{for x in 3..<9{costs[y*10+x]=0}};let map=PlacementMap(bounds:CGRect(x:0,y:0,width:100,height:100),width:10,height:10,costs:costs);let r=PlacementOptimizer.best(map:map,aspectRatio:1,minSize:CGSize(width:20,height:20),maxSize:CGSize(width:100,height:100),costBudget:0);XCTAssertEqual(r?.frame,CGRect(x:30,y:20,width:60,height:60));XCTAssertEqual(r?.area,3600)}
+    func testPlacementTieBreaksTopThenLeft(){let map=PlacementMap(bounds:CGRect(x:-20,y:5,width:40,height:20),width:4,height:2,costs:[Float](repeating:0,count:8));let r=PlacementOptimizer.best(map:map,aspectRatio:1,minSize:CGSize(width:10,height:10),maxSize:CGSize(width:10,height:10),costBudget:0);XCTAssertEqual(r?.frame.origin,CGPoint(x:-20,y:5))}
+}
