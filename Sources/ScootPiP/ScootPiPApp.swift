@@ -27,7 +27,23 @@ import ScootPiPCore
 
 struct DebugView:View {
     @EnvironmentObject var store:WindowStore
-    var body:some View { VStack(alignment:.leading){ HStack{Button("Refresh"){store.refresh()}; Text("Global top-left coordinates in points"); Spacer(); Text("No automatic selection or movement")}.padding(); Table(store.windows,selection:$store.selectedID){ TableColumn("App"){Text($0.ax.owner)}; TableColumn("Title"){Text($0.ax.title ?? "—")}; TableColumn("Role"){Text([$0.ax.role,$0.ax.subrole].compactMap{$0}.joined(separator:" / "))}; TableColumn("Frame"){Text($0.ax.frame.map{NSStringFromRect($0)} ?? "—")}; TableColumn("Move/Resize"){Text("\($0.ax.capabilities.movable == true ? "Y":"N")/\($0.ax.capabilities.resizable == true ? "Y":"N")")}; TableColumn("CG") {Text($0.cg.map{"#\($0.id) L\($0.layer)"} ?? "ambiguous/unavailable")}; TableColumn("Score"){Text(String(format:"%.0f",$0.score.total)).help($0.score.components.map{"\($0.points): \($0.reason)"}.joined(separator:"\n"))} }.frame(minHeight:350); controls; Divider(); Text("Recent errors").font(.headline); ForEach(Array(store.errors.prefix(6).enumerated()),id:\.offset){Text($0.element).foregroundStyle(.red).textSelection(.enabled)} }.padding().onChange(of:store.selectedID){store.syncGeometryFields()} }
+    var body:some View { VStack(alignment:.leading){ HStack{Button("Refresh"){store.refresh()}; Text("Global top-left coordinates in points"); Spacer(); Text("No automatic selection or movement")}.padding(); Table(store.windows,selection:$store.selectedID){ TableColumn("App"){Text($0.ax.owner)}; TableColumn("Title"){Text($0.ax.title ?? "—")}; TableColumn("Role"){Text([$0.ax.role,$0.ax.subrole].compactMap{$0}.joined(separator:" / "))}; TableColumn("Frame"){Text($0.ax.frame.map{NSStringFromRect($0)} ?? "—")}; TableColumn("Move/Resize"){Text("\($0.ax.capabilities.movable == true ? "Y":"N")/\($0.ax.capabilities.resizable == true ? "Y":"N")")}; TableColumn("CG") {Text($0.cg.map{"#\($0.id) L\($0.layer)"} ?? "ambiguous/unavailable")}; TableColumn("Score"){Text(String(format:"%.0f",$0.score.total)).help($0.score.components.map{"\($0.points): \($0.reason)"}.joined(separator:"\n"))} }.frame(minHeight:350); controls; Divider(); Text("Recent errors").font(.headline); ForEach(Array(store.errors.prefix(6).enumerated()),id:\.offset){Text($0.element).foregroundStyle(.red).textSelection(.enabled)} }.padding().background(WindowActivator()).onChange(of:store.selectedID){store.syncGeometryFields()} }
     var controls:some View { HStack{ ForEach(0..<4){i in Button(["Top Left","Top Right","Bottom Left","Bottom Right"][i]){store.corner(i)}}; Divider(); field("x",$store.xText); field("y",$store.yText); field("width",$store.widthText); field("height",$store.heightText); Button("Apply exact geometry"){store.applyFields()} }.disabled(store.selectedID == nil) }
     func field(_ label:String,_ value:Binding<String>)->some View { HStack(spacing:3){Text(label);TextField(label,text:value).frame(width:70).textFieldStyle(.roundedBorder)} }
+}
+
+/// A menu-bar app can show a Settings window without automatically taking keyboard focus.
+/// Promote this specific SwiftUI window to the key window once AppKit has attached it.
+private struct WindowActivator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { ActivatingView() }
+    func updateNSView(_ view: NSView, context: Context) {}
+}
+
+private final class ActivatingView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window else { return }
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
 }
