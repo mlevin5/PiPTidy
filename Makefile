@@ -4,13 +4,17 @@ export CLANG_MODULE_CACHE_PATH := $(CURDIR)/.build/clang-module-cache
 export SWIFTPM_MODULECACHE_OVERRIDE := $(CURDIR)/.build/swiftpm-module-cache
 export XDG_CACHE_HOME := $(CURDIR)/.build/cache
 
-.PHONY: bootstrap generate build test lint phase2 phase5
+.PHONY: bootstrap generate build app run test lint phase2 phase5
 bootstrap:
 	@scripts/bootstrap.sh
 generate:
 	@command -v xcodegen >/dev/null && xcodegen generate || echo "xcodegen unavailable; Package.swift remains usable"
 build:
 	swift build --disable-sandbox
+app: build
+	@scripts/package-app.sh
+run: app
+	@open .build/ScootPiP.app
 test:
 	swift test --disable-sandbox
 lint:

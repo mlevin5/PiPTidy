@@ -12,9 +12,12 @@ The placement core searches a scoring map for an exact rectangle: it maximizes v
 make bootstrap
 make generate
 make build
+make run
 make test
 make lint
 ```
+
+Use `make run` for GUI testing. It packages and opens a local `.app`; running the bare executable through `swift run` does not reliably receive keyboard focus on macOS.
 
 Launch from Xcode, grant Accessibility permission, open a native Chrome PiP window, refresh the Debug Window, select its row, and test corner or direct global top-left geometry controls. Record the displayed AX fields, CG layer, and errors: Chrome behavior remains empirically unverified.
 

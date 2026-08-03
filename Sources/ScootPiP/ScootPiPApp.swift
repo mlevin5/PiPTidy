@@ -2,14 +2,6 @@ import SwiftUI
 import AppKit
 import ScootPiPCore
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationWillFinishLaunching(_ notification: Notification) {
-        // SwiftPM launches this executable from Terminal without an application bundle.
-        // A regular activation policy is required for its debug window to receive keys.
-        NSApplication.shared.setActivationPolicy(.regular)
-    }
-}
-
 @MainActor final class WindowStore: ObservableObject {
     @Published var windows:[WindowSnapshot]=[]; @Published var selectedID:String?; @Published var errors:[String]=[]
     @Published var xText="100"; @Published var yText="100"; @Published var widthText="480"; @Published var heightText="270"
@@ -26,7 +18,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main struct ScootPiPApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store=WindowStore()
     var body: some Scene {
         MenuBarExtra("ScootPiP",systemImage:"pip") { Text("Automation: Phase 1 manual only").foregroundStyle(.secondary); Text(store.auth.isTrusted ? "Accessibility: Granted":"Accessibility: Required"); Text("Selected: \(store.selected?.ax.owner ?? "None")"); Button("Request Accessibility Permission"){store.auth.request()}; Button("Refresh"){store.refresh()}; SettingsLink{Text("Debug Window")}; Divider(); Button("Quit"){NSApplication.shared.terminate(nil)} }.menuBarExtraStyle(.menu)
@@ -52,7 +43,6 @@ private final class ActivatingView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window else { return }
-        NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate()
         window.makeMain()
         window.makeKeyAndOrderFront(nil)
