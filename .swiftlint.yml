@@ -1,0 +1,7 @@
+included:
+  - Sources
+  - Tests
+disabled_rules:
+  - trailing_comma
+line_length: 140
+

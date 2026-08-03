@@ -1,0 +1,32 @@
+name: ScootPiP
+options:
+  bundleIdPrefix: app.scootpip
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGNING_ALLOWED: NO
+targets:
+  ScootPiPCore:
+    type: framework
+    platform: macOS
+    sources: [Sources/ScootPiPCore]
+  ScootPiP:
+    type: application
+    platform: macOS
+    sources: [Sources/ScootPiP]
+    dependencies:
+      - target: ScootPiPCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.scootpip.ScootPiP
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+  ScootPiPCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests/ScootPiPCoreTests]
+    dependencies:
+      - target: ScootPiPCore
+
