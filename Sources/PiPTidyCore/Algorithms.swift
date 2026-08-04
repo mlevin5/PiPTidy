@@ -60,19 +60,21 @@ public enum PlacementOptimizer {
 
     /// Returns the least harmful minimum-sized placement when no candidate can
     /// satisfy the strict budget. High-importance coverage wins before mean cost.
-    public static func leastCost(map:PlacementMap,aspectRatio:CGFloat,minSize:CGSize,highCostThreshold:Float=1)->PlacementResult? {
+    public static func leastCost(map:PlacementMap,aspectRatio:CGFloat,minSize:CGSize,maxSize:CGSize?=nil,highCostThreshold:Float=1,highCostTolerance:Double=0.01,meanCostTolerance:Double=0.05)->PlacementResult? {
         guard map.width>0,map.height>0,aspectRatio>0 else{return nil}
         let sx=map.bounds.width/CGFloat(map.width),sy=map.bounds.height/CGFloat(map.height)
-        let width=max(1,Int(ceil(minSize.width/sx))),height=max(1,Int(ceil(minSize.height/sy)))
-        guard width<=map.width,height<=map.height else{return nil}
         var integral=[Double](repeating:0,count:(map.width+1)*(map.height+1)),highIntegral=[Int](repeating:0,count:(map.width+1)*(map.height+1))
         for y in 0..<map.height {for x in 0..<map.width {let index=(y+1)*(map.width+1)+x+1,value=map.cost(atX:x,y:y);integral[index]=Double(value)+integral[y*(map.width+1)+x+1]+integral[(y+1)*(map.width+1)+x]-integral[y*(map.width+1)+x];highIntegral[index]=(value>=highCostThreshold ? 1:0)+highIntegral[y*(map.width+1)+x+1]+highIntegral[(y+1)*(map.width+1)+x]-highIntegral[y*(map.width+1)+x]}}
-        func sumCost(_ x:Int,_ y:Int)->Double {integral[(y+height)*(map.width+1)+x+width]-integral[y*(map.width+1)+x+width]-integral[(y+height)*(map.width+1)+x]+integral[y*(map.width+1)+x]}
-        func sumHigh(_ x:Int,_ y:Int)->Int {highIntegral[(y+height)*(map.width+1)+x+width]-highIntegral[y*(map.width+1)+x+width]-highIntegral[(y+height)*(map.width+1)+x]+highIntegral[y*(map.width+1)+x]}
-        var best:(x:Int,y:Int,high:Int,mean:Double)?
-        for y in 0...(map.height-height) {for x in 0...(map.width-width) {let high=sumHigh(x,y),mean=sumCost(x,y)/Double(width*height);if best == nil || high<best!.high || (high==best!.high && (mean<best!.mean || (mean==best!.mean && (y<best!.y || (y==best!.y && x<best!.x))))) {best=(x,y,high,mean)}}}
-        guard let best else{return nil};let frame=CGRect(x:map.bounds.minX+CGFloat(best.x)*sx,y:map.bounds.minY+CGFloat(best.y)*sy,width:CGFloat(width)*sx,height:CGFloat(height)*sy)
-        return PlacementResult(frame:frame,occlusionCost:best.mean,area:frame.width*frame.height)
+        func bestCandidate(width:Int,height:Int)->(x:Int,y:Int,highFraction:Double,mean:Double)? {
+            guard width<=map.width,height<=map.height else{return nil};var best:(x:Int,y:Int,highFraction:Double,mean:Double)?;let count=Double(width*height)
+            for y in 0...(map.height-height) {for x in 0...(map.width-width) {let sum=integral[(y+height)*(map.width+1)+x+width]-integral[y*(map.width+1)+x+width]-integral[(y+height)*(map.width+1)+x]+integral[y*(map.width+1)+x],high=highIntegral[(y+height)*(map.width+1)+x+width]-highIntegral[y*(map.width+1)+x+width]-highIntegral[(y+height)*(map.width+1)+x]+highIntegral[y*(map.width+1)+x],candidate=(x,y,Double(high)/count,sum/count);if best == nil || candidate.2<best!.highFraction || (candidate.2==best!.highFraction && (candidate.3<best!.mean || (candidate.3==best!.mean && (y<best!.y || (y==best!.y && x<best!.x))))) {best=candidate}}};return best
+        }
+        func result(_ candidate:(x:Int,y:Int,highFraction:Double,mean:Double),width:Int,height:Int)->PlacementResult {let frame=CGRect(x:map.bounds.minX+CGFloat(candidate.x)*sx,y:map.bounds.minY+CGFloat(candidate.y)*sy,width:CGFloat(width)*sx,height:CGFloat(height)*sy);return PlacementResult(frame:frame,occlusionCost:candidate.mean,area:frame.width*frame.height)}
+        let minWidth=max(1,Int(ceil(minSize.width/sx))),minHeight=max(1,Int(round(CGFloat(minWidth)*sx/aspectRatio/sy)))
+        guard let baseline=bestCandidate(width:minWidth,height:minHeight) else{return nil}
+        let configuredMax=maxSize ?? minSize,maxWidth=min(map.width,Int(configuredMax.width/sx))
+        if maxWidth>minWidth {for width in stride(from:maxWidth,through:minWidth+1,by:-1) {let height=Int(round(CGFloat(width)*sx/aspectRatio/sy));guard height>=minHeight,height<=map.height,CGFloat(height)*sy<=configuredMax.height else{continue};if let candidate=bestCandidate(width:width,height:height),candidate.highFraction<=baseline.highFraction+highCostTolerance,candidate.mean<=baseline.mean+meanCostTolerance {return result(candidate,width:width,height:height)}}}
+        return result(baseline,width:minWidth,height:minHeight)
     }
 
     /// Exhaustively searches pixel-aligned positions, preferring the largest rectangle whose mean map cost is within the budget.

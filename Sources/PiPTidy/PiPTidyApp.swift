@@ -170,7 +170,7 @@ struct SystemScreenCaptureAuthorization {
             let minimumSize=CGSize(width:minimumWidth,height:minimumWidth/ratio)
             let outcome = await Task.detached(priority:.utility) {
                 if let strict=PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:minimumSize,maxSize:maximumSize,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) {return(result:Optional(strict),usedFallback:false)}
-                return(result:PlacementOptimizer.leastCost(map:map,aspectRatio:ratio,minSize:minimumSize,highCostThreshold:0.38),usedFallback:true)
+                return(result:PlacementOptimizer.leastCost(map:map,aspectRatio:ratio,minSize:minimumSize,maxSize:maximumSize,highCostThreshold:0.38),usedFallback:true)
             }.value
             let result=outcome.result
             if let result { proposedPlacement = result.frame }
