@@ -1,6 +1,6 @@
-name: ScootPiP
+name: PiPTidy
 options:
-  bundleIdPrefix: app.scootpip
+  bundleIdPrefix: app.piptidy
   deploymentTarget:
     macOS: "14.0"
 settings:
@@ -8,25 +8,26 @@ settings:
     SWIFT_VERSION: "6.0"
     CODE_SIGNING_ALLOWED: NO
 targets:
-  ScootPiPCore:
+  PiPTidyCore:
     type: framework
     platform: macOS
-    sources: [Sources/ScootPiPCore]
-  ScootPiP:
+    sources: [Sources/PiPTidyCore]
+  PiPTidy:
     type: application
     platform: macOS
-    sources: [Sources/ScootPiP]
+    sources: [Sources/PiPTidy]
+    resources: [Assets/AppIcon-1024.png]
     dependencies:
-      - target: ScootPiPCore
+      - target: PiPTidyCore
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.scootpip.ScootPiP
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_LSUIElement: YES
-  ScootPiPCoreTests:
+        PRODUCT_BUNDLE_IDENTIFIER: app.piptidy.PiPTidy.debug
+        PRODUCT_NAME: PiPTidy
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Resources/Info.plist
+  PiPTidyCoreTests:
     type: bundle.unit-test
     platform: macOS
-    sources: [Tests/ScootPiPCoreTests]
+    sources: [Tests/PiPTidyCoreTests]
     dependencies:
-      - target: ScootPiPCore
-
+      - target: PiPTidyCore

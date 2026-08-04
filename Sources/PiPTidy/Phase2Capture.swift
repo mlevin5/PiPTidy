@@ -1,6 +1,6 @@
 import AppKit
 import ScreenCaptureKit
-import ScootPiPCore
+import PiPTidyCore
 
 enum Phase2Capture {
     static func captureMap(excluding windowID: CGWindowID?) async throws -> PlacementMap {

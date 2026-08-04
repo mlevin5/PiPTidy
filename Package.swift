@@ -2,16 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "ScootPiP",
+    name: "PiPTidy",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "ScootPiPCore", targets: ["ScootPiPCore"]),
-        .executable(name: "ScootPiP", targets: ["ScootPiP"])
+        .library(name: "PiPTidyCore", targets: ["PiPTidyCore"]),
+        .executable(name: "PiPTidy", targets: ["PiPTidy"])
     ],
     targets: [
-        .target(name: "ScootPiPCore"),
-        .executableTarget(name: "ScootPiP", dependencies: ["ScootPiPCore"]),
-        .testTarget(name: "ScootPiPCoreTests", dependencies: ["ScootPiPCore"])
+        .target(name: "PiPTidyCore"),
+        .executableTarget(name: "PiPTidy", dependencies: ["PiPTidyCore"]),
+        .testTarget(name: "PiPTidyCoreTests", dependencies: ["PiPTidyCore"])
     ]
 )
-

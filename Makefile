@@ -4,7 +4,7 @@ export CLANG_MODULE_CACHE_PATH := $(CURDIR)/.build/clang-module-cache
 export SWIFTPM_MODULECACHE_OVERRIDE := $(CURDIR)/.build/swiftpm-module-cache
 export XDG_CACHE_HOME := $(CURDIR)/.build/cache
 
-.PHONY: bootstrap generate build app run test lint phase2 phase5
+.PHONY: bootstrap generate build app run test lint release phase2 phase5
 bootstrap:
 	@scripts/bootstrap.sh
 generate:
@@ -14,11 +14,13 @@ build:
 app: build
 	@scripts/package-app.sh
 run: app
-	@open .build/ScootPiP.app
+	@open ".build/PiP Tidy.app"
 test:
 	swift test --disable-sandbox
 lint:
 	@scripts/lint.sh
+release:
+	@scripts/release.sh
 phase2:
 	@echo "Phase 2 capture/image analysis is not implemented yet."
 phase5:

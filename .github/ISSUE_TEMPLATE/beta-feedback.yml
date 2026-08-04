@@ -1,0 +1,29 @@
+name: Beta feedback
+description: Tell us about a placement that worked well or needs improvement.
+title: "[Beta] "
+labels: [beta-feedback]
+body:
+  - type: dropdown
+    id: result
+    attributes:
+      label: What happened?
+      options: [Placement covered important content, Placement was too small, Placement was too large, PiP was not detected, Performance problem, Placement worked well, Other]
+    validations: {required: true}
+  - type: textarea
+    id: context
+    attributes:
+      label: What was on screen?
+      description: Please avoid including private information. A general description is enough.
+    validations: {required: true}
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: PiP Tidy diagnostics
+      description: Paste the result of Copy diagnostics. It contains window metadata but no screenshot pixels.
+      render: text
+  - type: input
+    id: macos
+    attributes: {label: macOS version}
+  - type: input
+    id: browser
+    attributes: {label: Browser and version}

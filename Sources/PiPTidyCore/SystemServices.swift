@@ -20,8 +20,8 @@ private func point(_ value: AXValue?) -> CGPoint? { guard let value else { retur
 private func size(_ value: AXValue?) -> CGSize? { guard let value else { return nil }; var result = CGSize.zero; return AXValueGetValue(value, .cgSize, &result) ? result : nil }
 
 public final class SystemAXService: AXInventoryProviding, WindowMutating, @unchecked Sendable {
-    private let log = Logger(subsystem: "app.scootpip.ScootPiP", category: "mutation")
-    private let enumerationLog = Logger(subsystem: "app.scootpip.ScootPiP", category: "enumeration")
+    private let log = Logger(subsystem: "app.piptidy.PiPTidy", category: "mutation")
+    private let enumerationLog = Logger(subsystem: "app.piptidy.PiPTidy", category: "enumeration")
     public init() {}
     public func enumerate() throws -> [AXWindowSnapshot] {
         guard AXIsProcessTrusted() else { throw AccessibilityError.notAuthorized }

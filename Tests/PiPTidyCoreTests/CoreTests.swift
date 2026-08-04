@@ -1,5 +1,5 @@
 import XCTest
-@testable import ScootPiPCore
+@testable import PiPTidyCore
 
 final class CoreTests:XCTestCase {
     func testCoordinateRoundTripAcrossNegativeDesktop(){let desktop=CGRect(x:-1440,y:-900,width:4480,height:2860);let r=CGRect(x:-1000,y:200,width:640,height:360);XCTAssertEqual(CoordinateConverter.globalTopLeftToAppKit(CoordinateConverter.appKitToGlobalTopLeft(r,desktop:desktop),desktop:desktop),r)}
