@@ -166,7 +166,8 @@ struct SystemScreenCaptureAuthorization {
             let configuredMaximum=CGSize(width:map.bounds.width*maximumFraction,height:map.bounds.height*maximumFraction)
             let maximumSize=observedMaximumPiPSize.map { CGSize(width:min(configuredMaximum.width,$0.width),height:min(configuredMaximum.height,$0.height)) } ?? configuredMaximum
             let result = await Task.detached(priority:.utility) { PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:CGSize(width:minimumWidth,height:minimumWidth/ratio),maxSize:maximumSize,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) }.value
-            proposedPlacement = result?.frame
+            if let result { proposedPlacement = result.frame }
+            else if !placeWhenReady { proposedPlacement = nil }
             heatmap = debugWindowVisible ? ScoringMapGenerator.heatmap(map,placement:result?.frame).map{NSImage(cgImage:$0,size:.zero)} : nil
             if let result {
                 setGeometryFields(result.frame)
@@ -177,7 +178,8 @@ struct SystemScreenCaptureAuthorization {
                     else if PlacementStability.shouldMove(from: frame, to: result.frame) { apply(result.frame,automatic:true) }
                     else { statusMessage = "PiP is already in a good spot" }
                 }
-            } else { record("No placement satisfied the scoring-map cost budget.") }
+            } else if placeWhenReady { statusMessage = "No safe placement in this frame · keeping PiP where it is" }
+            else { record("No placement satisfied the scoring-map cost budget.") }
         } catch { record("Screen analysis failed: \(error)") }
     }
 
@@ -304,7 +306,7 @@ struct DebugView: View {
                         TableColumn("Move/Resize") { Text("\($0.ax.capabilities.movable == true ? "Y" : "N")/\($0.ax.capabilities.resizable == true ? "Y" : "N")") }
                         TableColumn("CG") { Text($0.cg.map { "#\($0.id) L\($0.layer)" } ?? "ambiguous/unavailable") }
                         TableColumn("Score") { Text(String(format: "%.0f", $0.score.total)).help($0.score.components.map { "\($0.points): \($0.reason)" }.joined(separator: "\n")) }
-                    }.frame(height:showAllWindows ? 300 : 150)
+                    }.frame(height:showAllWindows ? 300 : 105)
                 }
                 controls
                 phase2
@@ -336,13 +338,20 @@ struct DebugView: View {
     }
 
     var controls: some View {
-        HStack {
-            ForEach(0..<4) { index in Button(["Top Left", "Top Right", "Bottom Left", "Bottom Right"][index]) { store.corner(index) } }
-            Divider()
-            field("x", $store.xText); field("y", $store.yText)
-            field("width", Binding(get: { store.widthText }, set: { store.setWidthText($0) }))
-            field("height", Binding(get: { store.heightText }, set: { store.setHeightText($0) }))
-            Button("Apply exact geometry") { store.applyFields() }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Quick placement").font(.headline)
+                ForEach(0..<4) { index in Button(["Top Left", "Top Right", "Bottom Left", "Bottom Right"][index]) { store.corner(index) } }
+                Spacer()
+            }
+            HStack(spacing: 12) {
+                Text("Exact geometry").font(.headline)
+                field("x", $store.xText); field("y", $store.yText)
+                field("width", Binding(get: { store.widthText }, set: { store.setWidthText($0) }))
+                field("height", Binding(get: { store.heightText }, set: { store.setHeightText($0) }))
+                Button("Apply exact geometry") { store.applyFields() }.fixedSize()
+                Spacer()
+            }
         }.disabled(store.selectedID == nil)
     }
 
