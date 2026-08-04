@@ -15,5 +15,13 @@ mkdir -p "$app_dir/Contents/MacOS"
 cp "$binary" "$app_dir/Contents/MacOS/ScootPiP"
 cp Resources/Info.plist "$app_dir/Contents/Info.plist"
 chmod +x "$app_dir/Contents/MacOS/ScootPiP"
-codesign --force --sign - "$app_dir" >/dev/null
+login_keychain="${HOME}/Library/Keychains/login.keychain-db"
+signing_identity=$(security find-identity -v -p codesigning "$login_keychain" 2>/dev/null | awk '/"Apple Development:/{print $2; exit}')
+if [ -n "$signing_identity" ]; then
+    codesign --force --sign "$signing_identity" "$app_dir" >/dev/null
+    echo "Signed with stable Apple Development identity $signing_identity"
+else
+    codesign --force --sign - "$app_dir" >/dev/null
+    echo "Warning: no Apple Development identity found; permissions may reset after rebuilds" >&2
+fi
 echo "Packaged $app_dir"

@@ -21,6 +21,8 @@ make lint
 
 Use `make run` for GUI testing. It packages and opens a local `.app`; running the bare executable through `swift run` does not reliably receive keyboard focus on macOS.
 
+The packaging script automatically uses the first valid Apple Development signing identity in the user keychain. Stable signing allows macOS Accessibility and Screen Recording permissions to survive ordinary rebuilds; it falls back to ad-hoc signing with a warning when no identity is available.
+
 Launch from Xcode, grant Accessibility permission, open a native Chrome PiP window, refresh the Debug Window, select its row, and test corner or direct global top-left geometry controls. Record the displayed AX fields, CG layer, and errors: Chrome behavior remains empirically unverified.
 
 See `docs/` for architecture, security/distribution, testing, and roadmap details.
