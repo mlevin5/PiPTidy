@@ -4,7 +4,9 @@ ScootPiP is an experimental macOS 14+ menu-bar utility for inspecting, selecting
 
 Phase 1 deliberately requires manual selection. It does not capture the screen, identify Chrome PiP automatically, track the pointer, run a browser extension, or move any window without a user action.
 
-The placement core searches a scoring map for an exact rectangle: it maximizes video area, then minimizes occlusion cost, rather than selecting one of four corners. Four-corner controls exist only as manual debug shortcuts. Live screen-derived map generation remains Phase 2.
+The placement core searches a scoring map for an exact rectangle: it maximizes video area, then minimizes occlusion cost, rather than selecting one of four corners. Four-corner controls exist only as manual debug shortcuts. Phase 2 supplies the screen-derived scoring map.
+
+Phase 2 controls are available both in the debug window and directly from the menu-bar menu. **Live Optimal Placement** refreshes, analyzes, and moves the manually selected PiP every three seconds until disabled.
 
 ## Build
 
