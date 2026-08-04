@@ -22,17 +22,18 @@ public enum PiPDetector {
 }
 public struct PlacementMap: Sendable { public let bounds:CGRect; public let width:Int; public let height:Int; public let costs:[Float]; public init(bounds:CGRect,width:Int,height:Int,costs:[Float]) { precondition(costs.count==width*height); self.bounds=bounds;self.width=width;self.height=height;self.costs=costs }; public func cost(atX x:Int,y:Int)->Float { costs[y*width+x] } }
 public struct TemporalStalenessState: Sendable, Equatable {
-    public let bounds:CGRect; public let width:Int; public let height:Int; public let rawCosts:[Float]; public let unchangedCounts:[UInt16]
-    public init(bounds:CGRect,width:Int,height:Int,rawCosts:[Float],unchangedCounts:[UInt16]) { self.bounds=bounds;self.width=width;self.height=height;self.rawCosts=rawCosts;self.unchangedCounts=unchangedCounts }
+    public let bounds:CGRect; public let width:Int; public let height:Int; public let rawCosts:[Float]; public let unchangedCounts:[UInt16]; public let historicalCosts:[Float]
+    public init(bounds:CGRect,width:Int,height:Int,rawCosts:[Float],unchangedCounts:[UInt16],historicalCosts:[Float]?=nil) { self.bounds=bounds;self.width=width;self.height=height;self.rawCosts=rawCosts;self.unchangedCounts=unchangedCounts;self.historicalCosts=historicalCosts ?? rawCosts }
 }
 public enum TemporalStaleness {
     /// Discounts unchanged visual regions over time, with a floor so static UI is never ignored.
     public static func applying(to map:PlacementMap,previous:TemporalStalenessState?,tolerance:Float=0.025,decayPerObservation:Float=0.035,floorMultiplier:Float=0.55)->(map:PlacementMap,state:TemporalStalenessState) {
-        let compatible=previous.map{$0.bounds==map.bounds && $0.width==map.width && $0.height==map.height && $0.rawCosts.count==map.costs.count && $0.unchangedCounts.count==map.costs.count} == true
+        let compatible=previous.map{$0.bounds==map.bounds && $0.width==map.width && $0.height==map.height && $0.rawCosts.count==map.costs.count && $0.unchangedCounts.count==map.costs.count && $0.historicalCosts.count==map.costs.count} == true
         guard compatible,let previous else{return(map,.init(bounds:map.bounds,width:map.width,height:map.height,rawCosts:map.costs,unchangedCounts:[UInt16](repeating:0,count:map.costs.count)))}
-        var counts=[UInt16](repeating:0,count:map.costs.count),costs=map.costs
+        var counts=[UInt16](repeating:0,count:map.costs.count),costs=map.costs,history=map.costs
         for index in map.costs.indices where abs(map.costs[index]-previous.rawCosts[index])<=tolerance {let count=previous.unchangedCounts[index] == .max ? UInt16.max : previous.unchangedCounts[index]+1;counts[index]=count;costs[index] *= max(floorMultiplier,1-Float(count)*decayPerObservation)}
-        let state=TemporalStalenessState(bounds:map.bounds,width:map.width,height:map.height,rawCosts:map.costs,unchangedCounts:counts)
+        for index in map.costs.indices {history[index]=max(map.costs[index],previous.historicalCosts[index]*0.94);if history[index]>map.costs[index]+tolerance {costs[index]=max(costs[index],history[index]*0.75)}}
+        let state=TemporalStalenessState(bounds:map.bounds,width:map.width,height:map.height,rawCosts:map.costs,unchangedCounts:counts,historicalCosts:history)
         return(.init(bounds:map.bounds,width:map.width,height:map.height,costs:costs),state)
     }
 }

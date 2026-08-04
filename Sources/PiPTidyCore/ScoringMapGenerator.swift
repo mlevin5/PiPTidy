@@ -13,15 +13,22 @@ public enum ScoringMapGenerator {
         context.interpolationQuality = .medium
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         func channels(_ x: Int, _ y: Int) -> (Float, Float, Float) { let i=(y*width+x)*4; return (Float(rgba[i])/255,Float(rgba[i+1])/255,Float(rgba[i+2])/255) }
-        func luminance(_ x: Int, _ y: Int) -> Float { let c=channels(x,y); return 0.2126*c.0+0.7152*c.1+0.0722*c.2 }
+        var luminance=[Float](repeating:0,count:width*height),edges=[Float](repeating:0,count:width*height)
+        for y in 0..<height {for x in 0..<width {let c=channels(x,y);luminance[y*width+x]=0.2126*c.0+0.7152*c.1+0.0722*c.2}}
+        for y in 0..<height {for x in 0..<width {let value=luminance[y*width+x];edges[y*width+x]=abs(value-luminance[y*width+min(x+1,width-1)])+abs(value-luminance[min(y+1,height-1)*width+x])}}
+        var horizontalPeak=[Float](repeating:0,count:width*height),edgeIntegral=[Float](repeating:0,count:(width+1)*(height+1))
+        for y in 0..<height {for x in 0..<width {var peak:Float=0;for sampleX in max(0,x-2)...min(width-1,x+2){peak=max(peak,edges[y*width+sampleX])};horizontalPeak[y*width+x]=peak;let integralIndex=(y+1)*(width+1)+x+1;edgeIntegral[integralIndex]=edges[y*width+x]+edgeIntegral[y*(width+1)+x+1]+edgeIntegral[(y+1)*(width+1)+x]-edgeIntegral[y*(width+1)+x]}}
         var costs=[Float](repeating:0,count:width*height)
         for y in 0..<height { for x in 0..<width {
-            let c=channels(x,y), light=luminance(x,y)
-            let gradient=abs(light-luminance(min(x+1,width-1),y))+abs(light-luminance(x,min(y+1,height-1)))
+            let c=channels(x,y), light=luminance[y*width+x]
+            var edgePeak:Float=0;for sampleY in max(0,y-2)...min(height-1,y+2){edgePeak=max(edgePeak,horizontalPeak[sampleY*width+x])}
+            let x0=max(0,x-2),x1=min(width,x+3),y0=max(0,y-2),y1=min(height,y+3)
+            let edgeTotal=edgeIntegral[y1*(width+1)+x1]-edgeIntegral[y0*(width+1)+x1]-edgeIntegral[y1*(width+1)+x0]+edgeIntegral[y0*(width+1)+x0]
+            let edgeDensity=edgeTotal/Float((x1-x0)*(y1-y0))
             let saturation=max(c.0,c.1,c.2)-min(c.0,c.1,c.2)
             let nx=(Float(x)/Float(width)-0.5)*2, ny=(Float(y)/Float(height)-0.5)*2
             let center=max(0,1-sqrt(nx*nx+ny*ny))
-            costs[y*width+x]=min(1,0.48*min(1,gradient*4)+0.24*light+0.18*saturation+0.10*center)
+            costs[y*width+x]=min(1,0.42*min(1,edgePeak*5)+0.22*min(1,edgeDensity*8)+0.14*light+0.12*saturation+0.10*center)
         } }
         return PlacementMap(bounds:bounds,width:width,height:height,costs:costs)
     }
