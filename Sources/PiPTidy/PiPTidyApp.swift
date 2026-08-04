@@ -29,11 +29,19 @@ struct SystemScreenCaptureAuthorization {
 
     private var liveTask: Task<Void, Never>?
     private var analysisTask: Task<Void, Never>?
+    private var didStartAutomatically = false
     let auth = SystemAuthorization()
     let screenAuth = SystemScreenCaptureAuthorization()
     let ax = SystemAXService()
     let cg = SystemCGInventory()
     let scorer = DefaultCandidateScorer()
+
+    init() {
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(800))
+            self?.startAutomatically()
+        }
+    }
 
     var selected: WindowSnapshot? { windows.first { $0.id == selectedID } }
 
@@ -123,6 +131,14 @@ struct SystemScreenCaptureAuthorization {
     }
 
     func applyProposedPlacement() { guard let proposedPlacement else { return }; apply(proposedPlacement) }
+    private func startAutomatically() {
+        guard !didStartAutomatically else { return }
+        didStartAutomatically = true
+        guard auth.isTrusted else { statusMessage = "Grant Accessibility to start automatic placement"; return }
+        guard screenAuth.isGranted else { statusMessage = "Grant Screen Recording to start automatic placement"; return }
+        statusMessage = "Looking for Picture-in-Picture…"
+        setLivePlacement(true)
+    }
     func setLivePlacement(_ enabled: Bool) {
         livePlacementEnabled = enabled
         liveTask?.cancel()
@@ -177,10 +193,8 @@ struct SystemScreenCaptureAuthorization {
             if !store.screenAuth.isGranted { Button("Grant Screen Recording…") { store.screenAuth.request() } }
             Divider()
             Text("PiP: \(store.selected?.ax.owner ?? "Not detected")")
-            Button("Find Picture-in-Picture") { store.refresh() }
-            Button(store.isAnalyzing ? "Analyzing…" : "Analyze Screen") { store.analyze() }.disabled(store.selectedID == nil || store.isAnalyzing)
-            Button("Place Proposed Geometry") { store.applyProposedPlacement() }.disabled(store.proposedPlacement == nil)
             Toggle("Live Optimal Placement", isOn: Binding(get: { store.livePlacementEnabled }, set: { store.setLivePlacement($0) }))
+            Button("Refresh now") { store.refresh() }
             Divider()
             SettingsLink { Text("Settings and Details…") }
             Button("Send Feedback…") { store.openInfoURL(key: "PiPTidyFeedbackURL") }
@@ -230,7 +244,7 @@ struct DebugView: View {
         HStack {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Welcome to PiP Tidy").font(.title2.bold())
-                Text("1. Grant both permissions.  2. Open a browser PiP video.  3. Choose Find Picture-in-Picture, then Analyze or enable Live.").foregroundStyle(.secondary)
+                Text("Grant both permissions, then open a browser PiP video. PiP Tidy detects it and starts Live Placement automatically.").foregroundStyle(.secondary)
             }
             Spacer()
             Button("Got it") { completedOnboarding = true }.buttonStyle(.borderedProminent)

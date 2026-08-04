@@ -7,6 +7,7 @@
   <meta name="description" content="PiP Tidy automatically finds a better size and position for Picture-in-Picture video on your Mac.">
   <title>PiP Tidy — Smart Picture-in-Picture Placement for Mac</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="identity.css">
   <link rel="icon" href="icon.png">
   <meta property="og:title" content="PiP Tidy for Mac">
   <meta property="og:description" content="Your floating video has better places to be.">
@@ -14,7 +15,7 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to the good part</a>
-  <div class="ticker" aria-hidden="true"><div>PICTURE-IN-PICTURE &nbsp;◆&nbsp; BUT TIDIER &nbsp;◆&nbsp; EXACT PLACEMENT &nbsp;◆&nbsp; FREE PUBLIC BETA &nbsp;◆&nbsp; YOUR SCREEN STAYS LOCAL &nbsp;◆&nbsp;</div></div>
+  <div class="ticker" aria-hidden="true"><div><span>PICTURE-IN-PICTURE &nbsp;◆&nbsp; BUT TIDIER &nbsp;◆&nbsp; LIVE PLACEMENT &nbsp;◆&nbsp; FREE PUBLIC BETA &nbsp;◆&nbsp; NO LLM &nbsp;◆&nbsp; YOUR SCREEN STAYS LOCAL &nbsp;◆&nbsp;</span><span>PICTURE-IN-PICTURE &nbsp;◆&nbsp; BUT TIDIER &nbsp;◆&nbsp; LIVE PLACEMENT &nbsp;◆&nbsp; FREE PUBLIC BETA &nbsp;◆&nbsp; NO LLM &nbsp;◆&nbsp; YOUR SCREEN STAYS LOCAL &nbsp;◆&nbsp;</span></div></div>
   <header>
     <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">▣</span> PiP Tidy</a>
     <nav aria-label="Primary navigation">
@@ -29,7 +30,7 @@
       <div class="hero-copy">
         <p class="kicker">[ macOS utility // v0.2 public beta ]</p>
         <h1>Your floating video has <em>better places</em> to be.</h1>
-        <p class="lede">PiP Tidy finds a roomy, low-distraction spot on your screen—then moves and resizes your browser’s Picture-in-Picture window to fit.</p>
+        <p class="lede">PiP Tidy finds a roomy, low-distraction spot on your screen—then keeps moving and resizing your browser’s Picture-in-Picture window as your workspace changes.</p>
         <div class="actions">
           <a class="button primary" href="https://github.com/mlevin5/PiPTidy/releases">Download the beta <span aria-hidden="true">↘</span></a>
           <a class="button ghost" href="https://github.com/mlevin5/PiPTidy/issues/new/choose">Tell me what broke</a>
@@ -64,8 +65,8 @@
       </article>
       <article>
         <p class="number">003</p>
-        <h2>One shot or live.</h2>
-        <p>Preview a proposed placement, move once, or turn on Live Placement and let PiP Tidy reconsider as your workspace changes.</p>
+        <h2>Live from launch.</h2>
+        <p>Open PiP Tidy and it starts looking. A PiP that is already open is detected automatically, and Live Placement keeps reconsidering as your workspace changes.</p>
       </article>
     </section>
 
@@ -84,15 +85,15 @@
     <section class="privacy" id="privacy">
       <div class="privacy-stamp" aria-hidden="true">PRIVATE<br>BY<br>DEFAULT</div>
       <div>
-        <p class="kicker">[ look, ma: no cloud ]</p>
+        <p class="kicker">[ no cloud // no llm // no generative ai ]</p>
         <h2>Your screen stays on your Mac.</h2>
-        <p>Screen images are reduced to a temporary, low-resolution importance map in memory. PiP Tidy does not save or transmit screenshots. The beta has no analytics, accounts, ads, or cloud processing.</p>
+        <p>Screen images are reduced to a temporary, low-resolution importance map in memory. Placement uses local image statistics and window geometry—not an LLM or cloud vision service. PiP Tidy does not save or transmit screenshots. The beta has no analytics, accounts, ads, or cloud processing.</p>
         <a href="https://github.com/mlevin5/PiPTidy/blob/main/docs/privacy.md">Read the plain-English privacy notes →</a>
       </div>
     </section>
 
     <section class="beta">
-      <p class="construction" aria-hidden="true">▓▒░ UNDER FRIENDLY CONSTRUCTION ░▒▓</p>
+      <img class="construction-guy" src="construction-worker.gif" alt="" width="180" height="180">
       <h2>It works. It is also very much a beta.</h2>
       <p>Try it with the weird layouts, websites, and monitor arrangements you actually use. When PiP Tidy nails the placement—or makes a baffling decision—I want to hear about it.</p>
       <a class="button light" href="https://github.com/mlevin5/PiPTidy/issues/new/choose">Send beta feedback</a>
