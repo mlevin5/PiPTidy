@@ -14,16 +14,18 @@ enum Phase2Capture {
         configuration.height = Int(display.frame.height)
         configuration.showsCursor = false
         let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
-        guard let baseMap = ScoringMapGenerator.make(image: image, bounds: display.frame) else { throw CaptureError.mapFailed }
-        let temporal=TemporalStaleness.applying(to:baseMap,previous:temporalState)
-        let foregroundMap = ScoringMapGenerator.applyingForegroundPriority(temporal.map, windows:SystemCGInventory().enumerate(), excludingPID:getpid(), excludingWindowID:windowID)
-        let appKitCursor=NSEvent.mouseLocation
-        let cursor=CGPoint(x:appKitCursor.x,y:desktop.maxY-appKitCursor.y)
-        let map=ScoringMapGenerator.applyingPointPriority(foregroundMap,point:cursor)
-        let visible = CoordinateConverter.appKitToGlobalTopLeft(screen.visibleFrame, desktop:desktop)
-        let cellWidth=map.bounds.width/CGFloat(map.width),cellHeight=map.bounds.height/CGFloat(map.height)
-        let costs=map.costs.enumerated().map { index,value in let x=index%map.width,y=index/map.width; let point=CGPoint(x:map.bounds.minX+(CGFloat(x)+0.5)*cellWidth,y:map.bounds.minY+(CGFloat(y)+0.5)*cellHeight); return visible.contains(point) ? value : 1 }
-        return (PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs),temporal.state)
+        return try autoreleasepool {
+            guard let baseMap = ScoringMapGenerator.make(image: image, bounds: display.frame) else { throw CaptureError.mapFailed }
+            let temporal=TemporalStaleness.applying(to:baseMap,previous:temporalState)
+            let foregroundMap = ScoringMapGenerator.applyingForegroundPriority(temporal.map, windows:SystemCGInventory().enumerate(), excludingPID:getpid(), excludingWindowID:windowID)
+            let appKitCursor=NSEvent.mouseLocation
+            let cursor=CGPoint(x:appKitCursor.x,y:desktop.maxY-appKitCursor.y)
+            let map=ScoringMapGenerator.applyingPointPriority(foregroundMap,point:cursor)
+            let visible = CoordinateConverter.appKitToGlobalTopLeft(screen.visibleFrame, desktop:desktop)
+            let cellWidth=map.bounds.width/CGFloat(map.width),cellHeight=map.bounds.height/CGFloat(map.height)
+            let costs=map.costs.enumerated().map { index,value in let x=index%map.width,y=index/map.width; let point=CGPoint(x:map.bounds.minX+(CGFloat(x)+0.5)*cellWidth,y:map.bounds.minY+(CGFloat(y)+0.5)*cellHeight); return visible.contains(point) ? value : 1 }
+            return (PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs),temporal.state)
+        }
     }
     enum CaptureError: Error { case noDisplay, mapFailed }
 }

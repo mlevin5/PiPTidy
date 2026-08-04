@@ -20,6 +20,8 @@ struct SystemScreenCaptureAuthorization {
     @Published var heatmap: NSImage?
     @Published var proposedPlacement: CGRect?
     @Published var isAnalyzing = false
+    @Published var isRefreshing = false
+    @Published var debugWindowVisible = false
     @Published var livePlacementEnabled = false
     @Published var selectionWasAutoDetected = false
     @Published var statusMessage = "Ready"
@@ -48,18 +50,23 @@ struct SystemScreenCaptureAuthorization {
     var selected: WindowSnapshot? { windows.first { $0.id == selectedID } }
 
     private nonisolated static func makeInventory(ax:SystemAXService,cg:SystemCGInventory,scorer:DefaultCandidateScorer) throws -> [WindowSnapshot] {
-        let cgWindows=cg.enumerate()
-        var snapshots:[WindowSnapshot]=[]
-        for axWindow in try ax.enumerate() {
-            let match=WindowCorrelator.match(axWindow,cg:cgWindows)
-            snapshots.append(.init(ax:axWindow,cg:match,score:scorer.score(axWindow,cg:match)))
+        try autoreleasepool {
+            let cgWindows=cg.enumerate()
+            var snapshots:[WindowSnapshot]=[]
+            for axWindow in try ax.enumerate() {
+                let match=WindowCorrelator.match(axWindow,cg:cgWindows)
+                snapshots.append(.init(ax:axWindow,cg:match,score:scorer.score(axWindow,cg:match)))
+            }
+            return snapshots.sorted{$0.score.total == $1.score.total ? $0.id < $1.id : $0.score.total > $1.score.total}
         }
-        return snapshots.sorted{$0.score.total == $1.score.total ? $0.id < $1.id : $0.score.total > $1.score.total}
     }
 
     func refresh() { Task { await refreshInventory() } }
 
     private func refreshInventory() async {
+        guard !isRefreshing else { return }
+        isRefreshing=true
+        defer { isRefreshing=false }
         do {
             let ax=ax,cg=cg,scorer=scorer
             let task:Task<[WindowSnapshot],Error>=Task.detached(priority:.utility) {try Self.makeInventory(ax:ax,cg:cg,scorer:scorer)}
@@ -146,7 +153,7 @@ struct SystemScreenCaptureAuthorization {
             let maximumFraction = CGFloat(maximumScreenFraction)
             let result = await Task.detached(priority:.utility) { PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:CGSize(width:minimumWidth,height:minimumWidth/ratio),maxSize:CGSize(width:map.bounds.width*maximumFraction,height:map.bounds.height*maximumFraction),costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) }.value
             proposedPlacement = result?.frame
-            heatmap = ScoringMapGenerator.heatmap(map, placement: result?.frame).map { NSImage(cgImage: $0, size: .zero) }
+            heatmap = debugWindowVisible ? ScoringMapGenerator.heatmap(map,placement:result?.frame).map{NSImage(cgImage:$0,size:.zero)} : nil
             if let result {
                 setGeometryFields(result.frame)
                 statusMessage = "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
@@ -261,7 +268,7 @@ struct DebugView: View {
             Divider()
             Text("Recent errors").font(.headline)
             ForEach(Array(store.errors.prefix(6).enumerated()), id: \.offset) { Text($0.element).foregroundStyle(.red).textSelection(.enabled) }
-        }.padding().onChange(of: store.selectedID) { store.syncGeometryFields() }
+        }.padding().onChange(of: store.selectedID) { store.syncGeometryFields() }.onAppear { store.debugWindowVisible=true }.onDisappear { store.debugWindowVisible=false;store.heatmap=nil }
     }
 
     var permissionBanner: some View {
