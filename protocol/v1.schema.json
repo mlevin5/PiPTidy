@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://meganlevin.github.io/PiPTidy/protocol/v1.schema.json",
+  "$id": "https://mlevin5.github.io/PiPTidy/protocol/v1.schema.json",
   "title": "PiP Tidy Native Messaging v1",
   "type": "object",
   "required": ["version", "type"],

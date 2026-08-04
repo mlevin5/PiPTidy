@@ -16,8 +16,8 @@
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSAccessibilityUsageDescription</key><string>PiP Tidy detects, moves, and resizes your picture-in-picture window.</string>
     <key>NSScreenCaptureUsageDescription</key><string>PiP Tidy analyzes screen layout to find an unobtrusive picture-in-picture placement.</string>
-    <key>PiPTidyFeedbackURL</key><string>https://github.com/meganlevin/PiPTidy/issues/new/choose</string>
-    <key>PiPTidyWebsiteURL</key><string>https://meganlevin.github.io/PiPTidy/</string>
-    <key>PiPTidyReleasesURL</key><string>https://github.com/meganlevin/PiPTidy/releases/latest</string>
+    <key>PiPTidyFeedbackURL</key><string>https://github.com/mlevin5/PiPTidy/issues/new/choose</string>
+    <key>PiPTidyWebsiteURL</key><string>https://mlevin5.github.io/PiPTidy/</string>
+    <key>PiPTidyReleasesURL</key><string>https://github.com/mlevin5/PiPTidy/releases/latest</string>
 </dict>
 </plist>

@@ -8,6 +8,10 @@ The placement core searches a scoring map for an exact rectangle: it maximizes v
 
 Placement controls are available both in the details window and directly from the menu-bar menu. **Live Optimal Placement** detects, analyzes, and moves the PiP periodically until disabled. Analysis happens locally; screenshots are not stored or transmitted.
 
+## Beta and future licensing
+
+The current beta is free, does not expire, and is available under the MIT License. Code already released under MIT will remain usable under those terms. The planned commercial 1.0 will be developed privately and offered as a 14-day trial followed by a $15 one-time purchase; those terms will not be imposed retroactively on beta source releases. See [the commercialization plan](docs/commercialization.md).
+
 ## Build
 
 ```sh
@@ -36,4 +40,4 @@ See `docs/` for architecture, security/distribution, testing, and roadmap detail
 
 ## GitHub Pages
 
-The static product site lives in `website/`. After pushing the renamed repository to `github.com/meganlevin/PiPTidy`, open **Settings → Pages**, select **GitHub Actions** as the source, and run **Deploy GitHub Pages**. Update the URLs in `Resources/Info.plist`, `website/index.html`, and `.github/ISSUE_TEMPLATE/config.yml` if the GitHub owner or repository differs.
+The static product site lives in `website/`. After pushing the renamed repository to `github.com/mlevin5/PiPTidy`, open **Settings → Pages**, select **GitHub Actions** as the source, and run **Deploy GitHub Pages**.
