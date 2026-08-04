@@ -20,8 +20,12 @@ signing_identity=$(security find-identity -v -p codesigning "$login_keychain" 2>
 if [ -n "$signing_identity" ]; then
     # Resolve the identity from login explicitly, but let codesign use the full
     # trust search so the chain can reach Apple's root in System Roots.
-    codesign --force --sign "$signing_identity" "$app_dir" >/dev/null
-    echo "Signed with stable Apple Development identity $signing_identity"
+    if codesign --force --sign "$signing_identity" "$app_dir" >/dev/null; then
+        echo "Signed with stable Apple Development identity $signing_identity"
+    else
+        echo "Warning: development signing failed; falling back to ad-hoc signing" >&2
+        codesign --force --sign - "$app_dir" >/dev/null
+    fi
 else
     codesign --force --sign - "$app_dir" >/dev/null
     echo "Warning: no Apple Development identity found; permissions may reset after rebuilds" >&2
