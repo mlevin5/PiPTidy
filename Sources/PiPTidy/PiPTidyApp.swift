@@ -167,13 +167,18 @@ struct SystemScreenCaptureAuthorization {
             let maximumFraction = CGFloat(maximumScreenFraction)
             let configuredMaximum=CGSize(width:map.bounds.width*maximumFraction,height:map.bounds.height*maximumFraction)
             let maximumSize=observedMaximumPiPSize.map { CGSize(width:min(configuredMaximum.width,$0.width),height:min(configuredMaximum.height,$0.height)) } ?? configuredMaximum
-            let result = await Task.detached(priority:.utility) { PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:CGSize(width:minimumWidth,height:minimumWidth/ratio),maxSize:maximumSize,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) }.value
+            let minimumSize=CGSize(width:minimumWidth,height:minimumWidth/ratio)
+            let outcome = await Task.detached(priority:.utility) {
+                if let strict=PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:minimumSize,maxSize:maximumSize,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) {return(result:Optional(strict),usedFallback:false)}
+                return(result:PlacementOptimizer.leastCost(map:map,aspectRatio:ratio,minSize:minimumSize,highCostThreshold:0.38),usedFallback:true)
+            }.value
+            let result=outcome.result
             if let result { proposedPlacement = result.frame }
             else if !placeWhenReady { proposedPlacement = nil }
-            heatmap = debugWindowVisible ? ScoringMapGenerator.heatmap(map,placement:result?.frame).map{NSImage(cgImage:$0,size:.zero)} : nil
+            heatmap = debugWindowVisible ? ScoringMapGenerator.heatmap(map,placement:result?.frame).map{NSImage(cgImage:$0,size:NSSize(width:$0.width,height:$0.height))} : nil
             if let result {
                 setGeometryFields(result.frame)
-                statusMessage = "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
+                statusMessage = outcome.usedFallback ? "Best available placement · \(Int(result.frame.width))×\(Int(result.frame.height))" : "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
                 if placeWhenReady {
                     let repeatsRejectedGeometry=lastBrowserConstrainedProposal.map { !PlacementStability.shouldMove(from:$0,to:result.frame,minimumOriginDelta:4,minimumSizeDelta:4) } == true
                     let currentIsSafe=PlacementOptimizer.isAcceptable(map:map,frame:frame,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025)
@@ -183,8 +188,7 @@ struct SystemScreenCaptureAuthorization {
                     else if PlacementStability.shouldMove(from: frame, to: result.frame) { hasCompletedInitialPlacement=true;lastAutomaticMoveAt=Date();apply(result.frame,automatic:true) }
                     else { hasCompletedInitialPlacement=true;statusMessage = "PiP is already in a good spot" }
                 }
-            } else if placeWhenReady { statusMessage = "No safe placement in this frame · keeping PiP where it is" }
-            else { record("No placement satisfied the scoring-map cost budget.") }
+            } else { record("The display is too small for the configured minimum PiP size.") }
         } catch { record("Screen analysis failed: \(error)") }
     }
 
@@ -381,7 +385,7 @@ struct DebugView: View {
                 HStack { Button("Send Feedback…") { store.openInfoURL(key: "PiPTidyFeedbackURL") }; Button("Check for Updates…") { store.openInfoURL(key: "PiPTidyReleasesURL") }; Button("Website…") { store.openInfoURL(key: "PiPTidyWebsiteURL") } }
             }
             Spacer()
-            if let image = store.heatmap { Image(nsImage: image).resizable().interpolation(.none).scaledToFit().frame(width: 280, height: 160).border(.secondary); Text("black outline = proposed PiP") }
+            if let image = store.heatmap { Image(nsImage: image).resizable().interpolation(.none).scaledToFit().frame(width: 320, height: 180).border(.secondary); Text("black outline = proposed PiP") }
         }.padding(.vertical, 8)
     }
 }

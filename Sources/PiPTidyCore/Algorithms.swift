@@ -58,6 +58,23 @@ public enum PlacementOptimizer {
         return total/Double(count)<=costBudget && Double(high)/Double(count)<=maxHighCostFraction
     }
 
+    /// Returns the least harmful minimum-sized placement when no candidate can
+    /// satisfy the strict budget. High-importance coverage wins before mean cost.
+    public static func leastCost(map:PlacementMap,aspectRatio:CGFloat,minSize:CGSize,highCostThreshold:Float=1)->PlacementResult? {
+        guard map.width>0,map.height>0,aspectRatio>0 else{return nil}
+        let sx=map.bounds.width/CGFloat(map.width),sy=map.bounds.height/CGFloat(map.height)
+        let width=max(1,Int(ceil(minSize.width/sx))),height=max(1,Int(ceil(minSize.height/sy)))
+        guard width<=map.width,height<=map.height else{return nil}
+        var integral=[Double](repeating:0,count:(map.width+1)*(map.height+1)),highIntegral=[Int](repeating:0,count:(map.width+1)*(map.height+1))
+        for y in 0..<map.height {for x in 0..<map.width {let index=(y+1)*(map.width+1)+x+1,value=map.cost(atX:x,y:y);integral[index]=Double(value)+integral[y*(map.width+1)+x+1]+integral[(y+1)*(map.width+1)+x]-integral[y*(map.width+1)+x];highIntegral[index]=(value>=highCostThreshold ? 1:0)+highIntegral[y*(map.width+1)+x+1]+highIntegral[(y+1)*(map.width+1)+x]-highIntegral[y*(map.width+1)+x]}}
+        func sumCost(_ x:Int,_ y:Int)->Double {integral[(y+height)*(map.width+1)+x+width]-integral[y*(map.width+1)+x+width]-integral[(y+height)*(map.width+1)+x]+integral[y*(map.width+1)+x]}
+        func sumHigh(_ x:Int,_ y:Int)->Int {highIntegral[(y+height)*(map.width+1)+x+width]-highIntegral[y*(map.width+1)+x+width]-highIntegral[(y+height)*(map.width+1)+x]+highIntegral[y*(map.width+1)+x]}
+        var best:(x:Int,y:Int,high:Int,mean:Double)?
+        for y in 0...(map.height-height) {for x in 0...(map.width-width) {let high=sumHigh(x,y),mean=sumCost(x,y)/Double(width*height);if best == nil || high<best!.high || (high==best!.high && (mean<best!.mean || (mean==best!.mean && (y<best!.y || (y==best!.y && x<best!.x))))) {best=(x,y,high,mean)}}}
+        guard let best else{return nil};let frame=CGRect(x:map.bounds.minX+CGFloat(best.x)*sx,y:map.bounds.minY+CGFloat(best.y)*sy,width:CGFloat(width)*sx,height:CGFloat(height)*sy)
+        return PlacementResult(frame:frame,occlusionCost:best.mean,area:frame.width*frame.height)
+    }
+
     /// Exhaustively searches pixel-aligned positions, preferring the largest rectangle whose mean map cost is within the budget.
     public static func best(map:PlacementMap, aspectRatio:CGFloat, minSize:CGSize, maxSize:CGSize, costBudget:Double, highCostThreshold:Float = 1, maxHighCostFraction:Double = 1) -> PlacementResult? {
         guard map.width>0,map.height>0,aspectRatio>0 else{return nil}; var integral=[Double](repeating:0,count:(map.width+1)*(map.height+1)),highIntegral=[Int](repeating:0,count:(map.width+1)*(map.height+1)); for y in 0..<map.height { for x in 0..<map.width { let index=(y+1)*(map.width+1)+x+1,value=map.cost(atX:x,y:y); integral[index]=Double(value)+integral[y*(map.width+1)+x+1]+integral[(y+1)*(map.width+1)+x]-integral[y*(map.width+1)+x]; highIntegral[index]=(value>=highCostThreshold ? 1:0)+highIntegral[y*(map.width+1)+x+1]+highIntegral[(y+1)*(map.width+1)+x]-highIntegral[y*(map.width+1)+x] } }
