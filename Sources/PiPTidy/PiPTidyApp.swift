@@ -40,6 +40,8 @@ struct SystemScreenCaptureAuthorization {
     private var temporalState: TemporalStalenessState?
     private var observedMaximumPiPSize: CGSize?
     private var lastBrowserConstrainedProposal: CGRect?
+    private var hasCompletedInitialPlacement = false
+    private var lastAutomaticMoveAt = Date.distantPast
     let auth = SystemAuthorization()
     let screenAuth = SystemScreenCaptureAuthorization()
     let ax = SystemAXService()
@@ -86,7 +88,7 @@ struct SystemScreenCaptureAuthorization {
             guard !Task.isCancelled else { return }
             windows=inventory
             if let detected = PiPDetector.detect(in: windows) {
-                if selectedID != detected.id { selectedID=detected.id; selectedDetectedAt=Date(); temporalState=nil; observedMaximumPiPSize=nil; lastBrowserConstrainedProposal=nil; syncGeometryFields() }
+                if selectedID != detected.id { selectedID=detected.id; selectedDetectedAt=Date(); temporalState=nil; observedMaximumPiPSize=nil; lastBrowserConstrainedProposal=nil; hasCompletedInitialPlacement=false; lastAutomaticMoveAt = .distantPast; syncGeometryFields() }
                 selectionWasAutoDetected = true
                 statusMessage = "Picture-in-Picture detected"
             } else {
@@ -174,9 +176,12 @@ struct SystemScreenCaptureAuthorization {
                 statusMessage = "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
                 if placeWhenReady {
                     let repeatsRejectedGeometry=lastBrowserConstrainedProposal.map { !PlacementStability.shouldMove(from:$0,to:result.frame,minimumOriginDelta:4,minimumSizeDelta:4) } == true
-                    if repeatsRejectedGeometry { statusMessage = "PiP is in the closest position Firefox allows" }
-                    else if PlacementStability.shouldMove(from: frame, to: result.frame) { apply(result.frame,automatic:true) }
-                    else { statusMessage = "PiP is already in a good spot" }
+                    let currentIsSafe=PlacementOptimizer.isAcceptable(map:map,frame:frame,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025)
+                    if hasCompletedInitialPlacement,currentIsSafe { statusMessage = "PiP is still in a safe spot" }
+                    else if hasCompletedInitialPlacement,Date().timeIntervalSince(lastAutomaticMoveAt)<8 { statusMessage = "Holding position briefly to avoid unnecessary movement" }
+                    else if repeatsRejectedGeometry { hasCompletedInitialPlacement=true;statusMessage = "PiP is in the closest position Firefox allows" }
+                    else if PlacementStability.shouldMove(from: frame, to: result.frame) { hasCompletedInitialPlacement=true;lastAutomaticMoveAt=Date();apply(result.frame,automatic:true) }
+                    else { hasCompletedInitialPlacement=true;statusMessage = "PiP is already in a good spot" }
                 }
             } else if placeWhenReady { statusMessage = "No safe placement in this frame · keeping PiP where it is" }
             else { record("No placement satisfied the scoring-map cost budget.") }

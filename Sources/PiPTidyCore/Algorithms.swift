@@ -46,6 +46,17 @@ public enum PlacementStability {
     }
 }
 public enum PlacementOptimizer {
+    public static func isAcceptable(map:PlacementMap,frame:CGRect,costBudget:Double,highCostThreshold:Float=1,maxHighCostFraction:Double=1)->Bool {
+        guard map.bounds.contains(frame),map.width>0,map.height>0 else{return false}
+        let sx=CGFloat(map.width)/map.bounds.width,sy=CGFloat(map.height)/map.bounds.height
+        let minX=max(0,Int(floor((frame.minX-map.bounds.minX)*sx))),maxX=min(map.width,Int(ceil((frame.maxX-map.bounds.minX)*sx)))
+        let minY=max(0,Int(floor((frame.minY-map.bounds.minY)*sy))),maxY=min(map.height,Int(ceil((frame.maxY-map.bounds.minY)*sy)))
+        guard minX<maxX,minY<maxY else{return false}
+        var total:Double=0,high=0,count=0
+        for y in minY..<maxY {for x in minX..<maxX {let value=map.cost(atX:x,y:y);total += Double(value);high += value>=highCostThreshold ? 1:0;count += 1}}
+        return total/Double(count)<=costBudget && Double(high)/Double(count)<=maxHighCostFraction
+    }
+
     /// Exhaustively searches pixel-aligned positions, preferring the largest rectangle whose mean map cost is within the budget.
     public static func best(map:PlacementMap, aspectRatio:CGFloat, minSize:CGSize, maxSize:CGSize, costBudget:Double, highCostThreshold:Float = 1, maxHighCostFraction:Double = 1) -> PlacementResult? {
         guard map.width>0,map.height>0,aspectRatio>0 else{return nil}; var integral=[Double](repeating:0,count:(map.width+1)*(map.height+1)),highIntegral=[Int](repeating:0,count:(map.width+1)*(map.height+1)); for y in 0..<map.height { for x in 0..<map.width { let index=(y+1)*(map.width+1)+x+1,value=map.cost(atX:x,y:y); integral[index]=Double(value)+integral[y*(map.width+1)+x+1]+integral[(y+1)*(map.width+1)+x]-integral[y*(map.width+1)+x]; highIntegral[index]=(value>=highCostThreshold ? 1:0)+highIntegral[y*(map.width+1)+x+1]+highIntegral[(y+1)*(map.width+1)+x]-highIntegral[y*(map.width+1)+x] } }
