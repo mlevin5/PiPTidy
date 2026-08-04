@@ -3,34 +3,105 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="PiP Tidy automatically moves and resizes Picture-in-Picture video on your Mac so it stays large without covering what matters.">
-  <title>PiP Tidy — Automatic Picture-in-Picture Placement for Mac</title>
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="PiP Tidy automatically finds a better size and position for Picture-in-Picture video on your Mac.">
+  <title>PiP Tidy — Smart Picture-in-Picture Placement for Mac</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="icon.png">
   <meta property="og:title" content="PiP Tidy for Mac">
-  <meta property="og:description" content="A smarter place for Picture-in-Picture video.">
+  <meta property="og:description" content="Your floating video has better places to be.">
   <meta property="og:image" content="icon.png">
 </head>
 <body>
-  <nav><a class="brand" href="#top">PiP Tidy</a><a href="#privacy">Privacy</a><a href="https://github.com/mlevin5/PiPTidy">GitHub</a></nav>
-  <main id="top">
-    <section class="hero">
-      <img class="icon" src="icon.png" alt="PiP Tidy app icon">
-      <div>
-        <p class="eyebrow">Picture-in-Picture placement for macOS</p>
-        <h1>Keep the video.<br>See what matters.</h1>
-        <p class="lede">PiP Tidy automatically moves and resizes your Picture-in-Picture video, finding the largest unobtrusive spot on your screen.</p>
-        <div class="actions"><a class="button" href="https://github.com/mlevin5/PiPTidy/releases">Get the beta</a><a class="secondary" href="https://github.com/mlevin5/PiPTidy/issues/new/choose">Send feedback</a></div>
-        <p class="fine">Free beta · macOS 14 or later · Chrome and Firefox</p>
+  <a class="skip-link" href="#main">Skip to the good part</a>
+  <div class="ticker" aria-hidden="true"><div>PICTURE-IN-PICTURE &nbsp;◆&nbsp; BUT TIDIER &nbsp;◆&nbsp; EXACT PLACEMENT &nbsp;◆&nbsp; FREE PUBLIC BETA &nbsp;◆&nbsp; YOUR SCREEN STAYS LOCAL &nbsp;◆&nbsp;</div></div>
+  <header>
+    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">▣</span> PiP Tidy</a>
+    <nav aria-label="Primary navigation">
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="https://github.com/mlevin5/PiPTidy">Source</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="kicker">[ macOS utility // v0.2 public beta ]</p>
+        <h1>Your floating video has <em>better places</em> to be.</h1>
+        <p class="lede">PiP Tidy finds a roomy, low-distraction spot on your screen—then moves and resizes your browser’s Picture-in-Picture window to fit.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/mlevin5/PiPTidy/releases">Download the beta <span aria-hidden="true">↘</span></a>
+          <a class="button ghost" href="https://github.com/mlevin5/PiPTidy/issues/new/choose">Tell me what broke</a>
+        </div>
+        <p class="fine"><span class="status-dot"></span> Free while in beta · macOS 14+ · Chrome + Firefox</p>
+      </div>
+      <div class="hero-graphic">
+        <div class="image-window">
+          <div class="window-bar"><span></span><span></span><span></span><b>PIP_TIDY.IMG</b></div>
+          <img src="icon.png" alt="PiP Tidy icon: a white video window moving across a black screen on a neon-yellow background">
+        </div>
+        <p class="sticker sticker-one">NO MORE<br>GUESSING<br>CORNERS</p>
+        <p class="sticker sticker-two">100%<br>LOCAL</p>
       </div>
     </section>
-    <section class="features">
-      <article><span>01</span><h2>Content-aware</h2><p>A local importance map helps the video avoid detailed content and foreground windows.</p></article>
-      <article><span>02</span><h2>Exactly placed</h2><p>PiP Tidy searches for an exact size and position—not merely one of four corners.</p></article>
-      <article><span>03</span><h2>Live when you want it</h2><p>Use a one-time proposal or let Live Placement adapt as your workspace changes.</p></article>
+
+    <section class="manifesto">
+      <p>Picture-in-Picture is useful.</p>
+      <p>Picture-in-Picture parked over the exact thing you need to see is not.</p>
     </section>
-    <section class="privacy" id="privacy"><div><p class="eyebrow">Private by design</p><h2>Your screen stays on your Mac.</h2></div><p>Screen images are reduced to a temporary low-resolution importance map in memory. PiP Tidy has no analytics, accounts, ads, or cloud processing. It does not save or transmit screenshots.</p></section>
-    <section class="beta"><h2>Help shape the beta</h2><p>Try PiP Tidy with the sites and layouts you use, then tell us where its placement felt right—or where it got in your way.</p><a class="button" href="https://github.com/mlevin5/PiPTidy/issues/new/choose">Report beta feedback</a></section>
+
+    <section class="feature-grid" aria-label="Features">
+      <article>
+        <p class="number">001</p>
+        <h2>Not just four corners.</h2>
+        <p>PiP Tidy searches a full scoring map for an exact position and size. If the screen is crowded, it can shrink the video instead of bulldozing through important content.</p>
+      </article>
+      <article class="inverse">
+        <p class="number">002</p>
+        <h2>Foreground windows count.</h2>
+        <p>A smaller window in front probably matters. PiP Tidy gives it extra protection while looking for somewhere less annoying to land.</p>
+      </article>
+      <article>
+        <p class="number">003</p>
+        <h2>One shot or live.</h2>
+        <p>Preview a proposed placement, move once, or turn on Live Placement and let PiP Tidy reconsider as your workspace changes.</p>
+      </article>
+    </section>
+
+    <section class="how" id="how">
+      <div class="section-heading">
+        <p class="kicker">[ approximately how the magic happens ]</p>
+        <h2>Three steps. No browser extension.</h2>
+      </div>
+      <ol>
+        <li><span>1</span><div><h3>Find the PiP</h3><p>PiP Tidy detects the browser’s native Picture-in-Picture window.</p></div></li>
+        <li><span>2</span><div><h3>Read the room</h3><p>A low-resolution importance map identifies busy content and foreground windows.</p></div></li>
+        <li><span>3</span><div><h3>Make room</h3><p>The largest placement that clears the safety checks wins.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="privacy" id="privacy">
+      <div class="privacy-stamp" aria-hidden="true">PRIVATE<br>BY<br>DEFAULT</div>
+      <div>
+        <p class="kicker">[ look, ma: no cloud ]</p>
+        <h2>Your screen stays on your Mac.</h2>
+        <p>Screen images are reduced to a temporary, low-resolution importance map in memory. PiP Tidy does not save or transmit screenshots. The beta has no analytics, accounts, ads, or cloud processing.</p>
+        <a href="https://github.com/mlevin5/PiPTidy/blob/main/docs/privacy.md">Read the plain-English privacy notes →</a>
+      </div>
+    </section>
+
+    <section class="beta">
+      <p class="construction" aria-hidden="true">▓▒░ UNDER FRIENDLY CONSTRUCTION ░▒▓</p>
+      <h2>It works. It is also very much a beta.</h2>
+      <p>Try it with the weird layouts, websites, and monitor arrangements you actually use. When PiP Tidy nails the placement—or makes a baffling decision—I want to hear about it.</p>
+      <a class="button light" href="https://github.com/mlevin5/PiPTidy/issues/new/choose">Send beta feedback</a>
+    </section>
   </main>
-  <footer><span>PiP Tidy</span><span>Built for Mac. MIT licensed.</span></footer>
+
+  <footer>
+    <p><strong>PiP Tidy</strong> · Built for Mac by Megan Levin.</p>
+    <p><a href="https://github.com/mlevin5/PiPTidy">GitHub</a> · MIT licensed · <span title="You found the tiny footer star">★</span></p>
+  </footer>
 </body>
 </html>
