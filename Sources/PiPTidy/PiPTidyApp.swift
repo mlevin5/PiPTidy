@@ -181,7 +181,7 @@ struct SystemScreenCaptureAuthorization {
                 statusMessage = outcome.usedFallback ? "Best available placement · \(Int(result.frame.width))×\(Int(result.frame.height))" : "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
                 if placeWhenReady {
                     let repeatsRejectedGeometry=lastBrowserConstrainedProposal.map { !PlacementStability.shouldMove(from:$0,to:result.frame,minimumOriginDelta:4,minimumSizeDelta:4) } == true
-                    let currentIsSafe=PlacementOptimizer.isAcceptable(map:map,frame:frame,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025)
+                    let currentIsSafe=PlacementOptimizer.isAcceptable(map:map,frame:frame,minSize:minimumSize,maxSize:maximumSize,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025)
                     if hasCompletedInitialPlacement,currentIsSafe { statusMessage = "PiP is still in a safe spot" }
                     else if hasCompletedInitialPlacement,Date().timeIntervalSince(lastAutomaticMoveAt)<8 { statusMessage = "Holding position briefly to avoid unnecessary movement" }
                     else if repeatsRejectedGeometry { hasCompletedInitialPlacement=true;statusMessage = "PiP is in the closest position Firefox allows" }
@@ -245,8 +245,9 @@ struct SystemScreenCaptureAuthorization {
             setLivePlacement(true)
         }
     }
-    func setMinimumPiPWidth(_ value: Double) { minimumPiPWidth = value; UserDefaults.standard.set(value, forKey: "minimumPiPWidth") }
-    func setMaximumScreenFraction(_ value: Double) { maximumScreenFraction = value; UserDefaults.standard.set(value, forKey: "maximumScreenFraction") }
+    func setMinimumPiPWidth(_ value: Double) { minimumPiPWidth = value; UserDefaults.standard.set(value, forKey: "minimumPiPWidth"); resetPlacementStability() }
+    func setMaximumScreenFraction(_ value: Double) { maximumScreenFraction = value; UserDefaults.standard.set(value, forKey: "maximumScreenFraction"); resetPlacementStability() }
+    private func resetPlacementStability() { hasCompletedInitialPlacement=false;lastAutomaticMoveAt = .distantPast }
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }

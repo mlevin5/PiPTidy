@@ -47,8 +47,10 @@ public enum PlacementStability {
     }
 }
 public enum PlacementOptimizer {
-    public static func isAcceptable(map:PlacementMap,frame:CGRect,costBudget:Double,highCostThreshold:Float=1,maxHighCostFraction:Double=1)->Bool {
+    public static func isAcceptable(map:PlacementMap,frame:CGRect,minSize:CGSize?=nil,maxSize:CGSize?=nil,costBudget:Double,highCostThreshold:Float=1,maxHighCostFraction:Double=1)->Bool {
         guard map.bounds.contains(frame),map.width>0,map.height>0 else{return false}
+        if let minSize,frame.width<minSize.width-2 || frame.height<minSize.height-2 {return false}
+        if let maxSize,frame.width>maxSize.width+2 || frame.height>maxSize.height+2 {return false}
         let sx=CGFloat(map.width)/map.bounds.width,sy=CGFloat(map.height)/map.bounds.height
         let minX=max(0,Int(floor((frame.minX-map.bounds.minX)*sx))),maxX=min(map.width,Int(ceil((frame.maxX-map.bounds.minX)*sx)))
         let minY=max(0,Int(floor((frame.minY-map.bounds.minY)*sy))),maxY=min(map.height,Int(ceil((frame.maxY-map.bounds.minY)*sy)))
