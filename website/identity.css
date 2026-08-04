@@ -6,12 +6,3 @@
 .ticker span {
   display: block;
 }
-
-.construction-guy {
-  display: block;
-  width: 150px;
-  height: 150px;
-  margin: -20px auto 4px;
-  object-fit: cover;
-  image-rendering: pixelated;
-}
