@@ -44,7 +44,7 @@ public enum ScoringMapGenerator {
             let coverage=(window.frame.width*window.frame.height)/(map.bounds.width*map.bounds.height)
             guard window.pid != excludingPID,window.id != excludingWindowID,window.frame.intersects(map.bounds),(window.layer == 0 || coverage < 0.90) else{continue}
             let actual=cells(for:window.frame)
-            if window.layer == 0,coverage < 0.90,rank < 4 {
+            if coverage < 0.90,rank < 4 {
                 let protected=cells(for:window.frame.insetBy(dx:-clearance,dy:-clearance)),penalty=Float(0.30/Double(rank+1))
                 var hasVisibleCell=false
                 for y in protected.2..<protected.3 { for x in protected.0..<protected.1 where !occluded[y*map.width+x] {costs[y*map.width+x]=min(1,costs[y*map.width+x]+penalty);hasVisibleCell=true} }

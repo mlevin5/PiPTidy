@@ -48,17 +48,26 @@ public enum PlacementStability {
     }
 }
 public enum PlacementOptimizer {
+    public struct CostStatistics:Sendable,Equatable {public let mean:Double;public let highFraction:Double}
+    public static func statistics(map:PlacementMap,frame:CGRect,highCostThreshold:Float=1)->CostStatistics? {
+        guard map.bounds.contains(frame),map.width>0,map.height>0 else{return nil}
+        let sx=CGFloat(map.width)/map.bounds.width,sy=CGFloat(map.height)/map.bounds.height
+        let minX=max(0,Int(floor((frame.minX-map.bounds.minX)*sx))),maxX=min(map.width,Int(ceil((frame.maxX-map.bounds.minX)*sx)))
+        let minY=max(0,Int(floor((frame.minY-map.bounds.minY)*sy))),maxY=min(map.height,Int(ceil((frame.maxY-map.bounds.minY)*sy)))
+        guard minX<maxX,minY<maxY else{return nil};var total:Double=0,high=0,count=0
+        for y in minY..<maxY {for x in minX..<maxX {let value=map.cost(atX:x,y:y);total += Double(value);high += value>=highCostThreshold ? 1:0;count += 1}}
+        return .init(mean:total/Double(count),highFraction:Double(high)/Double(count))
+    }
+    public static func meaningfullyImproves(map:PlacementMap,from current:CGRect,to proposed:CGRect,highCostThreshold:Float=1,minimumMeanImprovement:Double=0.04,minimumHighFractionImprovement:Double=0.01)->Bool {
+        guard let current=statistics(map:map,frame:current,highCostThreshold:highCostThreshold),let proposed=statistics(map:map,frame:proposed,highCostThreshold:highCostThreshold) else{return true}
+        return current.mean-proposed.mean>=minimumMeanImprovement || current.highFraction-proposed.highFraction>=minimumHighFractionImprovement
+    }
     public static func isAcceptable(map:PlacementMap,frame:CGRect,minSize:CGSize?=nil,maxSize:CGSize?=nil,costBudget:Double,highCostThreshold:Float=1,maxHighCostFraction:Double=1)->Bool {
         guard map.bounds.contains(frame),map.width>0,map.height>0 else{return false}
         if let minSize,frame.width<minSize.width-2 || frame.height<minSize.height-2 {return false}
         if let maxSize,frame.width>maxSize.width+2 || frame.height>maxSize.height+2 {return false}
-        let sx=CGFloat(map.width)/map.bounds.width,sy=CGFloat(map.height)/map.bounds.height
-        let minX=max(0,Int(floor((frame.minX-map.bounds.minX)*sx))),maxX=min(map.width,Int(ceil((frame.maxX-map.bounds.minX)*sx)))
-        let minY=max(0,Int(floor((frame.minY-map.bounds.minY)*sy))),maxY=min(map.height,Int(ceil((frame.maxY-map.bounds.minY)*sy)))
-        guard minX<maxX,minY<maxY else{return false}
-        var total:Double=0,high=0,count=0
-        for y in minY..<maxY {for x in minX..<maxX {let value=map.cost(atX:x,y:y);total += Double(value);high += value>=highCostThreshold ? 1:0;count += 1}}
-        return total/Double(count)<=costBudget && Double(high)/Double(count)<=maxHighCostFraction
+        guard let statistics=statistics(map:map,frame:frame,highCostThreshold:highCostThreshold) else{return false}
+        return statistics.mean<=costBudget && statistics.highFraction<=maxHighCostFraction
     }
 
     /// Returns the least harmful minimum-sized placement when no candidate can
