@@ -7,10 +7,11 @@ import ScootPiPCore
     @Published var xText="100"; @Published var yText="100"; @Published var widthText="480"; @Published var heightText="270"
     @Published var heatmap:NSImage?; @Published var proposedPlacement:CGRect?; @Published var isAnalyzing=false
     @Published var livePlacementEnabled=false
+    @Published var selectionWasAutoDetected=false
     private var liveTask:Task<Void,Never>?
     let auth=SystemAuthorization(); let ax=SystemAXService(); let cg=SystemCGInventory(); let scorer=DefaultCandidateScorer()
     var selected:WindowSnapshot? { windows.first{$0.id==selectedID} }
-    func refresh(){ do { let cgs=cg.enumerate(); windows=try ax.enumerate().map { a in let c=WindowCorrelator.match(a,cg:cgs); return WindowSnapshot(ax:a,cg:c,score:scorer.score(a,cg:c)) }.sorted { $0.score.total == $1.score.total ? $0.id<$1.id : $0.score.total>$1.score.total } } catch { errors.insert(String(describing:error),at:0) } }
+    func refresh(){ do { let cgs=cg.enumerate(); windows=try ax.enumerate().map { a in let c=WindowCorrelator.match(a,cg:cgs); return WindowSnapshot(ax:a,cg:c,score:scorer.score(a,cg:c)) }.sorted { $0.score.total == $1.score.total ? $0.id<$1.id : $0.score.total>$1.score.total }; if let detected=PiPDetector.detect(in:windows) {if selectedID != detected.id {selectedID=detected.id;syncGeometryFields()};selectionWasAutoDetected=true} else {if !windows.contains(where:{$0.id==selectedID}){selectedID=nil};selectionWasAutoDetected=false} } catch { errors.insert(String(describing:error),at:0) } }
     func syncGeometryFields() { guard let frame=selected?.ax.frame else{return}; setGeometryFields(frame) }
     func setWidthText(_ value:String) { widthText=value; guard let width=Double(value),width>0,let ratio=selectedAspectRatio else{return}; heightText=format(CGFloat(width)/ratio) }
     func setHeightText(_ value:String) { heightText=value; guard let height=Double(value),height>0,let ratio=selectedAspectRatio else{return}; widthText=format(CGFloat(height)*ratio) }

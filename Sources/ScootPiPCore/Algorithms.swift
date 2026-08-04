@@ -13,6 +13,12 @@ public struct DefaultCandidateScorer: CandidateScoring {
 public enum WindowCorrelator {
     public static func match(_ ax: AXWindowSnapshot, cg: [CGWindowSnapshot], tolerance: CGFloat = 3) -> CGWindowSnapshot? { guard let frame=ax.frame else{return nil}; let candidates=cg.filter{$0.pid==ax.pid && abs($0.frame.minX-frame.minX)<=tolerance && abs($0.frame.minY-frame.minY)<=tolerance && abs($0.frame.width-frame.width)<=tolerance && abs($0.frame.height-frame.height)<=tolerance}; return candidates.count == 1 ? candidates[0] : nil }
 }
+public enum PiPDetector {
+    public static func detect(in windows:[WindowSnapshot])->WindowSnapshot? {
+        let titled=windows.filter { snapshot in let normalized=(snapshot.ax.title ?? "").lowercased().replacingOccurrences(of:"-",with:" ").replacingOccurrences(of:"_",with:" "); return normalized.contains("picture in picture") || normalized.trimmingCharacters(in:.whitespacesAndNewlines) == "pip" }
+        return titled.sorted { left,right in left.score.total == right.score.total ? left.id < right.id : left.score.total > right.score.total }.first
+    }
+}
 public struct PlacementMap: Sendable { public let bounds:CGRect; public let width:Int; public let height:Int; public let costs:[Float]; public init(bounds:CGRect,width:Int,height:Int,costs:[Float]) { precondition(costs.count==width*height); self.bounds=bounds;self.width=width;self.height=height;self.costs=costs }; public func cost(atX x:Int,y:Int)->Float { costs[y*width+x] } }
 public struct PlacementResult: Sendable, Equatable { public let frame:CGRect; public let occlusionCost:Double; public let area:CGFloat }
 public enum PlacementOptimizer {
