@@ -32,15 +32,14 @@ struct SystemScreenCaptureAuthorization {
     @Published private(set) var screenRecordingGranted = CGPreflightScreenCaptureAccess()
 
     private var liveTask: Task<Void, Never>?
-    private var cursorTask: Task<Void, Never>?
     private var analysisTask: Task<Void, Never>?
     private var permissionTask: Task<Void, Never>?
     private var didStartAutomatically = false
     private var waitingToStartAutomatically = false
     private var selectedDetectedAt: Date?
     private var temporalState: TemporalStalenessState?
-    private var interactionPauseUntil = Date.distantPast
-    private var lastCursorAvoidanceAt = Date.distantPast
+    private var observedMaximumPiPSize: CGSize?
+    private var lastBrowserConstrainedProposal: CGRect?
     let auth = SystemAuthorization()
     let screenAuth = SystemScreenCaptureAuthorization()
     let ax = SystemAXService()
@@ -87,7 +86,7 @@ struct SystemScreenCaptureAuthorization {
             guard !Task.isCancelled else { return }
             windows=inventory
             if let detected = PiPDetector.detect(in: windows) {
-                if selectedID != detected.id { selectedID=detected.id; selectedDetectedAt=Date(); temporalState=nil; syncGeometryFields() }
+                if selectedID != detected.id { selectedID=detected.id; selectedDetectedAt=Date(); temporalState=nil; observedMaximumPiPSize=nil; lastBrowserConstrainedProposal=nil; syncGeometryFields() }
                 selectionWasAutoDetected = true
                 statusMessage = "Picture-in-Picture detected"
             } else {
@@ -115,10 +114,14 @@ struct SystemScreenCaptureAuthorization {
             setGeometryFields(frame)
             updateCachedFrame(id: id, frame: frame)
             statusMessage = "PiP placed at \(Int(frame.minX)), \(Int(frame.minY)) · \(Int(frame.width))×\(Int(frame.height))"
-        } catch let AccessibilityError.verification(_,actual) where automatic && actual.map({abs($0.minX-frame.minX)<4 && abs($0.minY-frame.minY)<4 && $0.width>0 && $0.height>0}) == true {
+        } catch let AccessibilityError.verification(_,actual) where automatic && actual.map({$0.width>0 && $0.height>0}) == true {
             let accepted=actual!
+            if accepted.width < frame.width-2 || accepted.height < frame.height-2 {
+                observedMaximumPiPSize=accepted.size
+            }
+            lastBrowserConstrainedProposal=frame
             setGeometryFields(accepted);updateCachedFrame(id:id,frame:accepted)
-            statusMessage="PiP placed · browser kept \(Int(accepted.width))×\(Int(accepted.height))"
+            statusMessage="PiP placed · browser adjusted to \(Int(accepted.width))×\(Int(accepted.height))"
         } catch { record(error) }
     }
 
@@ -149,30 +152,29 @@ struct SystemScreenCaptureAuthorization {
     private func analyzeOnce(placeWhenReady: Bool) async {
         guard !isAnalyzing, let selected, let frame = selected.ax.frame else { return }
         if placeWhenReady,let selectedDetectedAt,Date().timeIntervalSince(selectedDetectedAt)<2.0 {statusMessage="Picture-in-Picture detected · letting it settle…";return}
-        let cursor = globalCursorPoint()
-        if placeWhenReady, shouldPauseForPiPInteraction(cursor: cursor, frame: frame) {
-            statusMessage = "Live placement paused while you interact with PiP"
-            return
-        }
         isAnalyzing = true
         statusMessage = "Analyzing screen…"
         defer { isAnalyzing = false }
         do {
-            let capture = try await Phase2Capture.captureMap(excluding:selected.cg?.id,temporalState:temporalState,cursor:cursor)
+            let capture = try await Phase2Capture.captureMap(excluding:selected.cg?.id,temporalState:temporalState)
             temporalState=capture.temporalState
             let map=capture.map
             guard !Task.isCancelled else { return }
             let ratio = frame.width / frame.height
             let minimumWidth = CGFloat(minimumPiPWidth)
             let maximumFraction = CGFloat(maximumScreenFraction)
-            let result = await Task.detached(priority:.utility) { PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:CGSize(width:minimumWidth,height:minimumWidth/ratio),maxSize:CGSize(width:map.bounds.width*maximumFraction,height:map.bounds.height*maximumFraction),costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) }.value
+            let configuredMaximum=CGSize(width:map.bounds.width*maximumFraction,height:map.bounds.height*maximumFraction)
+            let maximumSize=observedMaximumPiPSize.map { CGSize(width:min(configuredMaximum.width,$0.width),height:min(configuredMaximum.height,$0.height)) } ?? configuredMaximum
+            let result = await Task.detached(priority:.utility) { PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:CGSize(width:minimumWidth,height:minimumWidth/ratio),maxSize:maximumSize,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) }.value
             proposedPlacement = result?.frame
             heatmap = debugWindowVisible ? ScoringMapGenerator.heatmap(map,placement:result?.frame).map{NSImage(cgImage:$0,size:.zero)} : nil
             if let result {
                 setGeometryFields(result.frame)
                 statusMessage = "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
                 if placeWhenReady {
-                    if PlacementStability.shouldMove(from: frame, to: result.frame) { apply(result.frame,automatic:true) }
+                    let repeatsRejectedGeometry=lastBrowserConstrainedProposal.map { !PlacementStability.shouldMove(from:$0,to:result.frame,minimumOriginDelta:4,minimumSizeDelta:4) } == true
+                    if repeatsRejectedGeometry { statusMessage = "PiP is in the closest position Firefox allows" }
+                    else if PlacementStability.shouldMove(from: frame, to: result.frame) { apply(result.frame,automatic:true) }
                     else { statusMessage = "PiP is already in a good spot" }
                 }
             } else { record("No placement satisfied the scoring-map cost budget.") }
@@ -191,9 +193,7 @@ struct SystemScreenCaptureAuthorization {
     func setLivePlacement(_ enabled: Bool) {
         livePlacementEnabled = enabled
         liveTask?.cancel()
-        cursorTask?.cancel()
         liveTask = nil
-        cursorTask = nil
         guard enabled else { statusMessage = "Live placement off"; return }
         guard accessibilityGranted else { livePlacementEnabled = false; record("Accessibility permission is required for live placement."); return }
         guard screenRecordingGranted else { livePlacementEnabled = false; record("Screen Recording permission is required for live placement."); return }
@@ -205,35 +205,6 @@ struct SystemScreenCaptureAuthorization {
                 try? await Task.sleep(for: .seconds(4))
             }
         }
-        cursorTask = Task { [weak self] in
-            while !Task.isCancelled {
-                if let self { await self.respondToApproachingCursor() }
-                try? await Task.sleep(for: .milliseconds(250))
-            }
-        }
-    }
-
-    private func respondToApproachingCursor() async {
-        guard livePlacementEnabled, !isAnalyzing, let frame = selected?.ax.frame else { return }
-        let cursor = globalCursorPoint()
-        if shouldPauseForPiPInteraction(cursor: cursor, frame: frame) {
-            statusMessage = "Live placement paused while you interact with PiP"
-            return
-        }
-        let avoidanceZone = frame.insetBy(dx: -220, dy: -220)
-        guard avoidanceZone.contains(cursor), Date().timeIntervalSince(lastCursorAvoidanceAt) >= 1 else { return }
-        lastCursorAvoidanceAt = Date()
-        await analyzeOnce(placeWhenReady: true)
-    }
-
-    private func shouldPauseForPiPInteraction(cursor: CGPoint, frame: CGRect) -> Bool {
-        let now = Date()
-        // The corridor catches an approaching pointer before PiP can flee and
-        // remains pinned briefly after the pointer leaves for comfortable drags.
-        if NSEvent.modifierFlags.contains(.option) || frame.insetBy(dx: -36, dy: -36).contains(cursor) {
-            interactionPauseUntil = now.addingTimeInterval(1.75)
-        }
-        return now < interactionPauseUntil
     }
 
     func record(_ error: Error) { record(String(describing: error)) }
@@ -265,11 +236,6 @@ struct SystemScreenCaptureAuthorization {
     }
     func setMinimumPiPWidth(_ value: Double) { minimumPiPWidth = value; UserDefaults.standard.set(value, forKey: "minimumPiPWidth") }
     func setMaximumScreenFraction(_ value: Double) { maximumScreenFraction = value; UserDefaults.standard.set(value, forKey: "maximumScreenFraction") }
-    private func globalCursorPoint() -> CGPoint {
-        let desktop=NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
-        let point=NSEvent.mouseLocation
-        return CGPoint(x:point.x,y:desktop.maxY-point.y)
-    }
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
@@ -288,7 +254,7 @@ struct SystemScreenCaptureAuthorization {
         NSPasteboard.general.setString(value, forType: .string)
     }
 
-    deinit { liveTask?.cancel(); cursorTask?.cancel(); analysisTask?.cancel(); permissionTask?.cancel() }
+    deinit { liveTask?.cancel(); analysisTask?.cancel(); permissionTask?.cancel() }
 }
 
 @main struct PiPTidyApp: App {
@@ -304,7 +270,6 @@ struct SystemScreenCaptureAuthorization {
             Divider()
             Text("PiP: \(store.selected?.ax.owner ?? "Not detected")")
             Toggle("Live Optimal Placement", isOn: Binding(get: { store.livePlacementEnabled }, set: { store.setLivePlacement($0) }))
-            Text("Hold ⌥ to pin PiP for controls or resizing")
             Button("Refresh now") { store.refresh() }
             Divider()
             SettingsLink { Text("Settings and Details…") }
@@ -339,7 +304,7 @@ struct DebugView: View {
             Divider()
             Text("Recent errors").font(.headline)
             ForEach(Array(store.errors.prefix(6).enumerated()), id: \.offset) { Text($0.element).foregroundStyle(.red).textSelection(.enabled) }
-        }.padding().onChange(of: store.selectedID) { store.syncGeometryFields() }.onAppear { store.debugWindowVisible=true }.onDisappear { store.debugWindowVisible=false;store.heatmap=nil }
+        }.padding().background(FloatingSettingsWindow()).onChange(of: store.selectedID) { store.syncGeometryFields() }.onAppear { store.debugWindowVisible=true }.onDisappear { store.debugWindowVisible=false;store.heatmap=nil }
     }
 
     var permissionBanner: some View {
@@ -392,5 +357,16 @@ struct DebugView: View {
             Spacer()
             if let image = store.heatmap { Image(nsImage: image).resizable().interpolation(.none).scaledToFit().frame(width: 280, height: 160).border(.secondary); Text("black outline = proposed PiP") }
         }.padding(.vertical, 8)
+    }
+}
+
+private struct FloatingSettingsWindow: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { view.window?.level = .floating }
+        return view
+    }
+    func updateNSView(_ view: NSView, context: Context) {
+        DispatchQueue.main.async { view.window?.level = .floating }
     }
 }

@@ -6,7 +6,7 @@
 
 ## Placement intelligence backlog
 
-- [ ] **Cursor-aware movement without breaking PiP controls.** PiP now uses a strong outer avoidance zone and a smaller interaction corridor that pins it while the pointer crosses into its controls, during manual resizing, and for a short grace period afterward. A lightweight proximity watcher reacts between full analysis cycles, and holding Option explicitly pins PiP so it is always reachable. Next: recent cursor trajectory and dwell weighting.
+- [ ] **Cursor-aware movement without breaking PiP controls.** Deferred after the first avoidance experiment made PiP feel too evasive. Before revisiting, design an explicit interaction model that keeps controls and manual resizing reliably reachable, then consider trajectory and dwell weighting.
 - [ ] **Temporal staleness.** Maintain a low-resolution history map. Regions that remain unchanged, lose keyboard focus, have been scrolled past, or have not received cursor dwell can gradually decay in importance. Recently changed, focused, or revisited regions regain weight. Treat “already read” only as an inference; never claim eye tracking without an actual gaze signal.
 - [ ] **Fast-motion/game mode.** Calculate coarse frame-difference or block-motion energy at a higher cadence than the full saliency pass. Protect moving connected components and predicted near-future positions while using integral images, dirty-region updates, and a strict per-frame time budget.
 - [ ] **Movement stability.** A first version now ignores small changes in proposed position and size. Next: require a meaningful score improvement, cap move frequency, predict short motion trajectories, and prefer resizing in place over repeatedly teleporting PiP.

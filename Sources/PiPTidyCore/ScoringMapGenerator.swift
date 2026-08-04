@@ -41,7 +41,9 @@ public enum ScoringMapGenerator {
     /// high-contrast desktop image would otherwise look visually important.
     public static func applyingDesktopClearance(_ map: PlacementMap, windows: [CGWindowSnapshot], excludingPID: pid_t, excludingWindowID: CGWindowID?) -> PlacementMap {
         let visibleWindows = windows.filter {
-            $0.pid != excludingPID && $0.id != excludingWindowID && $0.frame.intersects(map.bounds)
+            let coverage = ($0.frame.width * $0.frame.height) / (map.bounds.width * map.bounds.height)
+            return $0.pid != excludingPID && $0.id != excludingWindowID && $0.frame.intersects(map.bounds)
+                && ($0.layer == 0 || coverage < 0.90)
         }
         var covered = [Bool](repeating: false, count: map.width * map.height)
         let cellWidth = map.bounds.width / CGFloat(map.width)
@@ -59,22 +61,6 @@ public enum ScoringMapGenerator {
         var costs = map.costs
         for index in costs.indices where !covered[index] { costs[index] = 0 }
         return PlacementMap(bounds: map.bounds, width: map.width, height: map.height, costs: costs)
-    }
-
-    /// Adds a smooth local penalty around an interaction point. This is deliberately
-    /// cheap: it operates on the existing bounded grid and adds no capture work.
-    public static func applyingPointPriority(_ map: PlacementMap, point: CGPoint, radius: CGFloat = 140, peakPenalty: Float = 0.65) -> PlacementMap {
-        guard radius > 0, peakPenalty > 0 else { return map }
-        let cellWidth=map.bounds.width/CGFloat(map.width),cellHeight=map.bounds.height/CGFloat(map.height)
-        var costs=map.costs
-        for y in 0..<map.height { for x in 0..<map.width {
-            let center=CGPoint(x:map.bounds.minX+(CGFloat(x)+0.5)*cellWidth,y:map.bounds.minY+(CGFloat(y)+0.5)*cellHeight)
-            let distance=hypot(center.x-point.x,center.y-point.y)
-            guard distance < radius else { continue }
-            let weight=Float(1-distance/radius)
-            costs[y*map.width+x]=min(1,costs[y*map.width+x]+peakPenalty*weight)
-        } }
-        return PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs)
     }
 
     public static func heatmap(_ map: PlacementMap, placement: CGRect?) -> CGImage? {
