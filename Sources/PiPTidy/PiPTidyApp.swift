@@ -110,6 +110,10 @@ struct SystemScreenCaptureAuthorization {
 
     private func analyzeOnce(placeWhenReady: Bool) async {
         guard !isAnalyzing, let selected, let frame = selected.ax.frame else { return }
+        if placeWhenReady, frame.contains(globalCursorPoint()) {
+            statusMessage = "Live placement paused while you interact with PiP"
+            return
+        }
         isAnalyzing = true
         statusMessage = "Analyzing screen…"
         defer { isAnalyzing = false }
@@ -125,7 +129,10 @@ struct SystemScreenCaptureAuthorization {
             if let result {
                 setGeometryFields(result.frame)
                 statusMessage = "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
-                if placeWhenReady { apply(result.frame) }
+                if placeWhenReady {
+                    if PlacementStability.shouldMove(from: frame, to: result.frame) { apply(result.frame) }
+                    else { statusMessage = "PiP is already in a good spot" }
+                }
             } else { record("No placement satisfied the scoring-map cost budget.") }
         } catch { record("Screen analysis failed: \(error)") }
     }
@@ -160,6 +167,11 @@ struct SystemScreenCaptureAuthorization {
     func record(_ message: String) { errors.insert(message, at: 0); if errors.count > 25 { errors.removeLast(errors.count - 25) }; statusMessage = message }
     func setMinimumPiPWidth(_ value: Double) { minimumPiPWidth = value; UserDefaults.standard.set(value, forKey: "minimumPiPWidth") }
     func setMaximumScreenFraction(_ value: Double) { maximumScreenFraction = value; UserDefaults.standard.set(value, forKey: "maximumScreenFraction") }
+    private func globalCursorPoint() -> CGPoint {
+        let desktop=NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+        let point=NSEvent.mouseLocation
+        return CGPoint(x:point.x,y:desktop.maxY-point.y)
+    }
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }

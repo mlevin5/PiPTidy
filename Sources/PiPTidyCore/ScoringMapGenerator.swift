@@ -37,6 +37,22 @@ public enum ScoringMapGenerator {
         return PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs)
     }
 
+    /// Adds a smooth local penalty around an interaction point. This is deliberately
+    /// cheap: it operates on the existing bounded grid and adds no capture work.
+    public static func applyingPointPriority(_ map: PlacementMap, point: CGPoint, radius: CGFloat = 140, peakPenalty: Float = 0.65) -> PlacementMap {
+        guard radius > 0, peakPenalty > 0 else { return map }
+        let cellWidth=map.bounds.width/CGFloat(map.width),cellHeight=map.bounds.height/CGFloat(map.height)
+        var costs=map.costs
+        for y in 0..<map.height { for x in 0..<map.width {
+            let center=CGPoint(x:map.bounds.minX+(CGFloat(x)+0.5)*cellWidth,y:map.bounds.minY+(CGFloat(y)+0.5)*cellHeight)
+            let distance=hypot(center.x-point.x,center.y-point.y)
+            guard distance < radius else { continue }
+            let weight=Float(1-distance/radius)
+            costs[y*map.width+x]=min(1,costs[y*map.width+x]+peakPenalty*weight)
+        } }
+        return PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs)
+    }
+
     public static func heatmap(_ map: PlacementMap, placement: CGRect?) -> CGImage? {
         var pixels=[UInt8](repeating:0,count:map.width*map.height*4)
         for y in 0..<map.height { for x in 0..<map.width { let i=(y*map.width+x)*4, value=max(0,min(1,map.cost(atX:x,y:y))); pixels[i]=UInt8(255*value); pixels[i+1]=UInt8(180*(1-value)); pixels[i+2]=40; pixels[i+3]=190 } }

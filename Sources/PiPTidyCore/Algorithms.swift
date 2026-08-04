@@ -21,6 +21,14 @@ public enum PiPDetector {
 }
 public struct PlacementMap: Sendable { public let bounds:CGRect; public let width:Int; public let height:Int; public let costs:[Float]; public init(bounds:CGRect,width:Int,height:Int,costs:[Float]) { precondition(costs.count==width*height); self.bounds=bounds;self.width=width;self.height=height;self.costs=costs }; public func cost(atX x:Int,y:Int)->Float { costs[y*width+x] } }
 public struct PlacementResult: Sendable, Equatable { public let frame:CGRect; public let occlusionCost:Double; public let area:CGFloat }
+public enum PlacementStability {
+    /// Prevents small optimizer variations from visibly nudging an already-good PiP.
+    public static func shouldMove(from current:CGRect,to proposed:CGRect,minimumOriginDelta:CGFloat=24,minimumSizeDelta:CGFloat=14)->Bool {
+        let originDelta=hypot(current.minX-proposed.minX,current.minY-proposed.minY)
+        let sizeDelta=hypot(current.width-proposed.width,current.height-proposed.height)
+        return originDelta>=minimumOriginDelta || sizeDelta>=minimumSizeDelta
+    }
+}
 public enum PlacementOptimizer {
     /// Exhaustively searches pixel-aligned positions, preferring the largest rectangle whose mean map cost is within the budget.
     public static func best(map:PlacementMap, aspectRatio:CGFloat, minSize:CGSize, maxSize:CGSize, costBudget:Double, highCostThreshold:Float = 1, maxHighCostFraction:Double = 1) -> PlacementResult? {
