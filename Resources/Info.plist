@@ -12,5 +12,6 @@
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSAccessibilityUsageDescription</key><string>ScootPiP moves and resizes a user-selected picture-in-picture window.</string>
+    <key>NSScreenCaptureUsageDescription</key><string>ScootPiP analyzes screen layout to find an unobtrusive picture-in-picture placement.</string>
 </dict>
 </plist>
