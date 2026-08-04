@@ -20,6 +20,21 @@ public enum PiPDetector {
     }
 }
 public struct PlacementMap: Sendable { public let bounds:CGRect; public let width:Int; public let height:Int; public let costs:[Float]; public init(bounds:CGRect,width:Int,height:Int,costs:[Float]) { precondition(costs.count==width*height); self.bounds=bounds;self.width=width;self.height=height;self.costs=costs }; public func cost(atX x:Int,y:Int)->Float { costs[y*width+x] } }
+public struct TemporalStalenessState: Sendable, Equatable {
+    public let bounds:CGRect; public let width:Int; public let height:Int; public let rawCosts:[Float]; public let unchangedCounts:[UInt16]
+    public init(bounds:CGRect,width:Int,height:Int,rawCosts:[Float],unchangedCounts:[UInt16]) { self.bounds=bounds;self.width=width;self.height=height;self.rawCosts=rawCosts;self.unchangedCounts=unchangedCounts }
+}
+public enum TemporalStaleness {
+    /// Discounts unchanged visual regions over time, with a floor so static UI is never ignored.
+    public static func applying(to map:PlacementMap,previous:TemporalStalenessState?,tolerance:Float=0.025,decayPerObservation:Float=0.035,floorMultiplier:Float=0.55)->(map:PlacementMap,state:TemporalStalenessState) {
+        let compatible=previous.map{$0.bounds==map.bounds && $0.width==map.width && $0.height==map.height && $0.rawCosts.count==map.costs.count && $0.unchangedCounts.count==map.costs.count} == true
+        guard compatible,let previous else{return(map,.init(bounds:map.bounds,width:map.width,height:map.height,rawCosts:map.costs,unchangedCounts:[UInt16](repeating:0,count:map.costs.count)))}
+        var counts=[UInt16](repeating:0,count:map.costs.count),costs=map.costs
+        for index in map.costs.indices where abs(map.costs[index]-previous.rawCosts[index])<=tolerance {let count=previous.unchangedCounts[index] == .max ? UInt16.max : previous.unchangedCounts[index]+1;counts[index]=count;costs[index] *= max(floorMultiplier,1-Float(count)*decayPerObservation)}
+        let state=TemporalStalenessState(bounds:map.bounds,width:map.width,height:map.height,rawCosts:map.costs,unchangedCounts:counts)
+        return(.init(bounds:map.bounds,width:map.width,height:map.height,costs:costs),state)
+    }
+}
 public struct PlacementResult: Sendable, Equatable { public let frame:CGRect; public let occlusionCost:Double; public let area:CGFloat }
 public enum PlacementStability {
     /// Prevents small optimizer variations from visibly nudging an already-good PiP.

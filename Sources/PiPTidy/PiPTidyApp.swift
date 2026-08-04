@@ -30,6 +30,8 @@ struct SystemScreenCaptureAuthorization {
     private var liveTask: Task<Void, Never>?
     private var analysisTask: Task<Void, Never>?
     private var didStartAutomatically = false
+    private var selectedDetectedAt: Date?
+    private var temporalState: TemporalStalenessState?
     let auth = SystemAuthorization()
     let screenAuth = SystemScreenCaptureAuthorization()
     let ax = SystemAXService()
@@ -45,15 +47,27 @@ struct SystemScreenCaptureAuthorization {
 
     var selected: WindowSnapshot? { windows.first { $0.id == selectedID } }
 
-    func refresh() {
+    private nonisolated static func makeInventory(ax:SystemAXService,cg:SystemCGInventory,scorer:DefaultCandidateScorer) throws -> [WindowSnapshot] {
+        let cgWindows=cg.enumerate()
+        var snapshots:[WindowSnapshot]=[]
+        for axWindow in try ax.enumerate() {
+            let match=WindowCorrelator.match(axWindow,cg:cgWindows)
+            snapshots.append(.init(ax:axWindow,cg:match,score:scorer.score(axWindow,cg:match)))
+        }
+        return snapshots.sorted{$0.score.total == $1.score.total ? $0.id < $1.id : $0.score.total > $1.score.total}
+    }
+
+    func refresh() { Task { await refreshInventory() } }
+
+    private func refreshInventory() async {
         do {
-            let cgWindows = cg.enumerate()
-            windows = try ax.enumerate().map { axWindow in
-                let match = WindowCorrelator.match(axWindow, cg: cgWindows)
-                return WindowSnapshot(ax: axWindow, cg: match, score: scorer.score(axWindow, cg: match))
-            }.sorted { $0.score.total == $1.score.total ? $0.id < $1.id : $0.score.total > $1.score.total }
+            let ax=ax,cg=cg,scorer=scorer
+            let task:Task<[WindowSnapshot],Error>=Task.detached(priority:.utility) {try Self.makeInventory(ax:ax,cg:cg,scorer:scorer)}
+            let inventory=try await task.value
+            guard !Task.isCancelled else { return }
+            windows=inventory
             if let detected = PiPDetector.detect(in: windows) {
-                if selectedID != detected.id { selectedID = detected.id; syncGeometryFields() }
+                if selectedID != detected.id { selectedID=detected.id; selectedDetectedAt=Date(); temporalState=nil; syncGeometryFields() }
                 selectionWasAutoDetected = true
                 statusMessage = "Picture-in-Picture detected"
             } else {
@@ -74,13 +88,17 @@ struct SystemScreenCaptureAuthorization {
         apply(CGRect(x: x, y: y, width: width, height: height))
     }
 
-    func apply(_ frame: CGRect) {
+    func apply(_ frame: CGRect, automatic: Bool = false) {
         guard let id = selectedID else { record("Open a Picture-in-Picture window first."); return }
         do {
             try ax.setFrame(id: id, frame: frame)
             setGeometryFields(frame)
             updateCachedFrame(id: id, frame: frame)
             statusMessage = "PiP placed at \(Int(frame.minX)), \(Int(frame.minY)) · \(Int(frame.width))×\(Int(frame.height))"
+        } catch let AccessibilityError.verification(_,actual) where automatic && actual.map({abs($0.minX-frame.minX)<4 && abs($0.minY-frame.minY)<4 && $0.width>0 && $0.height>0}) == true {
+            let accepted=actual!
+            setGeometryFields(accepted);updateCachedFrame(id:id,frame:accepted)
+            statusMessage="PiP placed · browser kept \(Int(accepted.width))×\(Int(accepted.height))"
         } catch { record(error) }
     }
 
@@ -110,6 +128,7 @@ struct SystemScreenCaptureAuthorization {
 
     private func analyzeOnce(placeWhenReady: Bool) async {
         guard !isAnalyzing, let selected, let frame = selected.ax.frame else { return }
+        if placeWhenReady,let selectedDetectedAt,Date().timeIntervalSince(selectedDetectedAt)<2.0 {statusMessage="Picture-in-Picture detected · letting it settle…";return}
         if placeWhenReady, frame.contains(globalCursorPoint()) {
             statusMessage = "Live placement paused while you interact with PiP"
             return
@@ -118,19 +137,21 @@ struct SystemScreenCaptureAuthorization {
         statusMessage = "Analyzing screen…"
         defer { isAnalyzing = false }
         do {
-            let map = try await Phase2Capture.captureMap(excluding: selected.cg?.id)
+            let capture = try await Phase2Capture.captureMap(excluding:selected.cg?.id,temporalState:temporalState)
+            temporalState=capture.temporalState
+            let map=capture.map
             guard !Task.isCancelled else { return }
             let ratio = frame.width / frame.height
             let minimumWidth = CGFloat(minimumPiPWidth)
             let maximumFraction = CGFloat(maximumScreenFraction)
-            let result = PlacementOptimizer.best(map: map, aspectRatio: ratio, minSize: CGSize(width: minimumWidth, height: minimumWidth / ratio), maxSize: CGSize(width: map.bounds.width * maximumFraction, height: map.bounds.height * maximumFraction), costBudget: 0.24, highCostThreshold: 0.38, maxHighCostFraction: 0.025)
+            let result = await Task.detached(priority:.utility) { PlacementOptimizer.best(map:map,aspectRatio:ratio,minSize:CGSize(width:minimumWidth,height:minimumWidth/ratio),maxSize:CGSize(width:map.bounds.width*maximumFraction,height:map.bounds.height*maximumFraction),costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025) }.value
             proposedPlacement = result?.frame
             heatmap = ScoringMapGenerator.heatmap(map, placement: result?.frame).map { NSImage(cgImage: $0, size: .zero) }
             if let result {
                 setGeometryFields(result.frame)
                 statusMessage = "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
                 if placeWhenReady {
-                    if PlacementStability.shouldMove(from: frame, to: result.frame) { apply(result.frame) }
+                    if PlacementStability.shouldMove(from: frame, to: result.frame) { apply(result.frame,automatic:true) }
                     else { statusMessage = "PiP is already in a good spot" }
                 }
             } else { record("No placement satisfied the scoring-map cost budget.") }
@@ -156,7 +177,7 @@ struct SystemScreenCaptureAuthorization {
         statusMessage = "Live placement on"
         liveTask = Task {
             while !Task.isCancelled {
-                refresh()
+                await refreshInventory()
                 await analyzeOnce(placeWhenReady: true)
                 try? await Task.sleep(for: .seconds(4))
             }
