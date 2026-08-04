@@ -71,7 +71,10 @@ public final class SystemAXService: AXInventoryProviding, WindowMutating, @unche
         let window = windows[index]
         var origin = frame.origin, dimensions = frame.size
         guard let position = AXValueCreate(.cgPoint, &origin), let sizeValue = AXValueCreate(.cgSize, &dimensions) else { throw AccessibilityError.missingAttribute("geometry") }
-        for (name, value) in [(kAXPositionAttribute as CFString, position), (kAXSizeAttribute as CFString, sizeValue)] {
+        // Some browser PiP implementations move the window as a side effect of
+        // enforcing their aspect ratio during resize. Resize first so the final
+        // position write wins instead of reporting a false placement failure.
+        for (name, value) in [(kAXSizeAttribute as CFString, sizeValue), (kAXPositionAttribute as CFString, position)] {
             var settable = DarwinBoolean(false)
             guard AXUIElementIsAttributeSettable(window, name, &settable) == .success, settable.boolValue else { throw AccessibilityError.unsupported(name as String) }
             let error = AXUIElementSetAttributeValue(window, name, value)

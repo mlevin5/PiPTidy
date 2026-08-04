@@ -6,7 +6,7 @@ import SwiftUI
 
 struct SystemScreenCaptureAuthorization {
     var isGranted: Bool { CGPreflightScreenCaptureAccess() }
-    func request() { CGRequestScreenCaptureAccess() }
+    func request() -> Bool { CGRequestScreenCaptureAccess() }
 }
 
 @MainActor final class WindowStore: ObservableObject {
@@ -28,12 +28,19 @@ struct SystemScreenCaptureAuthorization {
     @Published var minimumPiPWidth = UserDefaults.standard.object(forKey: "minimumPiPWidth") as? Double ?? 240
     @Published var maximumScreenFraction = UserDefaults.standard.object(forKey: "maximumScreenFraction") as? Double ?? 0.55
     @Published var launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
+    @Published private(set) var accessibilityGranted = AXIsProcessTrusted()
+    @Published private(set) var screenRecordingGranted = CGPreflightScreenCaptureAccess()
 
     private var liveTask: Task<Void, Never>?
+    private var cursorTask: Task<Void, Never>?
     private var analysisTask: Task<Void, Never>?
+    private var permissionTask: Task<Void, Never>?
     private var didStartAutomatically = false
+    private var waitingToStartAutomatically = false
     private var selectedDetectedAt: Date?
     private var temporalState: TemporalStalenessState?
+    private var interactionPauseUntil = Date.distantPast
+    private var lastCursorAvoidanceAt = Date.distantPast
     let auth = SystemAuthorization()
     let screenAuth = SystemScreenCaptureAuthorization()
     let ax = SystemAXService()
@@ -41,6 +48,12 @@ struct SystemScreenCaptureAuthorization {
     let scorer = DefaultCandidateScorer()
 
     init() {
+        permissionTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.refreshPermissionState()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(800))
             self?.startAutomatically()
@@ -129,14 +142,15 @@ struct SystemScreenCaptureAuthorization {
     func analyze(placeWhenReady: Bool = false) {
         guard analysisTask == nil else { return }
         guard selected?.ax.frame != nil else { record("Open a Picture-in-Picture window, then try again."); return }
-        guard screenAuth.isGranted else { record("Screen Recording permission is required for placement analysis."); return }
+        guard screenRecordingGranted else { record("Screen Recording permission is required for placement analysis."); return }
         analysisTask = Task { await analyzeOnce(placeWhenReady: placeWhenReady); analysisTask = nil }
     }
 
     private func analyzeOnce(placeWhenReady: Bool) async {
         guard !isAnalyzing, let selected, let frame = selected.ax.frame else { return }
         if placeWhenReady,let selectedDetectedAt,Date().timeIntervalSince(selectedDetectedAt)<2.0 {statusMessage="Picture-in-Picture detected · letting it settle…";return}
-        if placeWhenReady, frame.contains(globalCursorPoint()) {
+        let cursor = globalCursorPoint()
+        if placeWhenReady, shouldPauseForPiPInteraction(cursor: cursor, frame: frame) {
             statusMessage = "Live placement paused while you interact with PiP"
             return
         }
@@ -144,7 +158,7 @@ struct SystemScreenCaptureAuthorization {
         statusMessage = "Analyzing screen…"
         defer { isAnalyzing = false }
         do {
-            let capture = try await Phase2Capture.captureMap(excluding:selected.cg?.id,temporalState:temporalState)
+            let capture = try await Phase2Capture.captureMap(excluding:selected.cg?.id,temporalState:temporalState,cursor:cursor)
             temporalState=capture.temporalState
             let map=capture.map
             guard !Task.isCancelled else { return }
@@ -169,18 +183,20 @@ struct SystemScreenCaptureAuthorization {
     private func startAutomatically() {
         guard !didStartAutomatically else { return }
         didStartAutomatically = true
-        guard auth.isTrusted else { statusMessage = "Grant Accessibility to start automatic placement"; return }
-        guard screenAuth.isGranted else { statusMessage = "Grant Screen Recording to start automatic placement"; return }
+        guard accessibilityGranted else { waitingToStartAutomatically = true; statusMessage = "Grant Accessibility to start automatic placement"; return }
+        guard screenRecordingGranted else { waitingToStartAutomatically = true; statusMessage = "Grant Screen Recording to start automatic placement"; return }
         statusMessage = "Looking for Picture-in-Picture…"
         setLivePlacement(true)
     }
     func setLivePlacement(_ enabled: Bool) {
         livePlacementEnabled = enabled
         liveTask?.cancel()
+        cursorTask?.cancel()
         liveTask = nil
+        cursorTask = nil
         guard enabled else { statusMessage = "Live placement off"; return }
-        guard auth.isTrusted else { livePlacementEnabled = false; record("Accessibility permission is required for live placement."); return }
-        guard screenAuth.isGranted else { livePlacementEnabled = false; record("Screen Recording permission is required for live placement."); return }
+        guard accessibilityGranted else { livePlacementEnabled = false; record("Accessibility permission is required for live placement."); return }
+        guard screenRecordingGranted else { livePlacementEnabled = false; record("Screen Recording permission is required for live placement."); return }
         statusMessage = "Live placement on"
         liveTask = Task {
             while !Task.isCancelled {
@@ -189,10 +205,64 @@ struct SystemScreenCaptureAuthorization {
                 try? await Task.sleep(for: .seconds(4))
             }
         }
+        cursorTask = Task { [weak self] in
+            while !Task.isCancelled {
+                if let self { await self.respondToApproachingCursor() }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+    }
+
+    private func respondToApproachingCursor() async {
+        guard livePlacementEnabled, !isAnalyzing, let frame = selected?.ax.frame else { return }
+        let cursor = globalCursorPoint()
+        if shouldPauseForPiPInteraction(cursor: cursor, frame: frame) {
+            statusMessage = "Live placement paused while you interact with PiP"
+            return
+        }
+        let avoidanceZone = frame.insetBy(dx: -220, dy: -220)
+        guard avoidanceZone.contains(cursor), Date().timeIntervalSince(lastCursorAvoidanceAt) >= 1 else { return }
+        lastCursorAvoidanceAt = Date()
+        await analyzeOnce(placeWhenReady: true)
+    }
+
+    private func shouldPauseForPiPInteraction(cursor: CGPoint, frame: CGRect) -> Bool {
+        let now = Date()
+        // The corridor catches an approaching pointer before PiP can flee and
+        // remains pinned briefly after the pointer leaves for comfortable drags.
+        if NSEvent.modifierFlags.contains(.option) || frame.insetBy(dx: -36, dy: -36).contains(cursor) {
+            interactionPauseUntil = now.addingTimeInterval(1.75)
+        }
+        return now < interactionPauseUntil
     }
 
     func record(_ error: Error) { record(String(describing: error)) }
     func record(_ message: String) { errors.insert(message, at: 0); if errors.count > 25 { errors.removeLast(errors.count - 25) }; statusMessage = message }
+    func requestAccessibility() {
+        auth.request()
+        openPrivacySettings(anchor: "Privacy_Accessibility")
+        refreshPermissionState()
+    }
+    func requestScreenRecording() {
+        _ = screenAuth.request()
+        openPrivacySettings(anchor: "Privacy_ScreenCapture")
+        refreshPermissionState()
+    }
+    private func openPrivacySettings(anchor: String) {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)"), NSWorkspace.shared.open(url) else {
+            record("Could not open Privacy & Security settings.")
+            return
+        }
+    }
+    private func refreshPermissionState() {
+        accessibilityGranted = auth.isTrusted
+        screenRecordingGranted = screenAuth.isGranted
+        if waitingToStartAutomatically, accessibilityGranted, screenRecordingGranted {
+            waitingToStartAutomatically = false
+            statusMessage = "Permissions granted · looking for Picture-in-Picture…"
+            setLivePlacement(true)
+        }
+    }
     func setMinimumPiPWidth(_ value: Double) { minimumPiPWidth = value; UserDefaults.standard.set(value, forKey: "minimumPiPWidth") }
     func setMaximumScreenFraction(_ value: Double) { maximumScreenFraction = value; UserDefaults.standard.set(value, forKey: "maximumScreenFraction") }
     private func globalCursorPoint() -> CGPoint {
@@ -213,12 +283,12 @@ struct SystemScreenCaptureAuthorization {
     }
     func copyDiagnostics() {
         let selection = selected.map { "\($0.ax.owner) · \($0.ax.title ?? "Untitled") · \($0.ax.frame.map(NSStringFromRect) ?? "No frame")" } ?? "No PiP selected"
-        let value = "PiP Tidy 0.2.0-beta\nAccessibility: \(auth.isTrusted)\nScreen Recording: \(screenAuth.isGranted)\nSelected: \(selection)\nStatus: \(statusMessage)\nRecent errors:\n\(errors.prefix(6).joined(separator: "\n"))"
+        let value = "PiP Tidy 0.2.0-beta\nAccessibility: \(accessibilityGranted)\nScreen Recording: \(screenRecordingGranted)\nSelected: \(selection)\nStatus: \(statusMessage)\nRecent errors:\n\(errors.prefix(6).joined(separator: "\n"))"
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
     }
 
-    deinit { liveTask?.cancel(); analysisTask?.cancel() }
+    deinit { liveTask?.cancel(); cursorTask?.cancel(); analysisTask?.cancel(); permissionTask?.cancel() }
 }
 
 @main struct PiPTidyApp: App {
@@ -227,13 +297,14 @@ struct SystemScreenCaptureAuthorization {
         MenuBarExtra("PiP Tidy", systemImage: "pip") {
             Text(store.statusMessage)
             Divider()
-            Label(store.auth.isTrusted ? "Accessibility granted" : "Accessibility required", systemImage: store.auth.isTrusted ? "checkmark.circle" : "exclamationmark.triangle")
-            Label(store.screenAuth.isGranted ? "Screen Recording granted" : "Screen Recording required", systemImage: store.screenAuth.isGranted ? "checkmark.circle" : "exclamationmark.triangle")
-            if !store.auth.isTrusted { Button("Grant Accessibility…") { store.auth.request() } }
-            if !store.screenAuth.isGranted { Button("Grant Screen Recording…") { store.screenAuth.request() } }
+            Label(store.accessibilityGranted ? "Accessibility granted" : "Accessibility required", systemImage: store.accessibilityGranted ? "checkmark.circle" : "exclamationmark.triangle")
+            Label(store.screenRecordingGranted ? "Screen Recording granted" : "Screen Recording required", systemImage: store.screenRecordingGranted ? "checkmark.circle" : "exclamationmark.triangle")
+            if !store.accessibilityGranted { Button("Grant Accessibility…") { store.requestAccessibility() } }
+            if !store.screenRecordingGranted { Button("Grant Screen Recording…") { store.requestScreenRecording() } }
             Divider()
             Text("PiP: \(store.selected?.ax.owner ?? "Not detected")")
             Toggle("Live Optimal Placement", isOn: Binding(get: { store.livePlacementEnabled }, set: { store.setLivePlacement($0) }))
+            Text("Hold ⌥ to pin PiP for controls or resizing")
             Button("Refresh now") { store.refresh() }
             Divider()
             SettingsLink { Text("Settings and Details…") }
@@ -275,8 +346,8 @@ struct DebugView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) { Text("Setup").font(.headline); Text("Accessibility moves PiP; Screen Recording calculates placements. Screen images stay on this Mac.").foregroundStyle(.secondary) }
             Spacer()
-            if !store.auth.isTrusted { Button("Grant Accessibility") { store.auth.request() } }
-            if !store.screenAuth.isGranted { Button("Grant Screen Recording") { store.screenAuth.request() } }
+            if !store.accessibilityGranted { Button("Grant Accessibility") { store.requestAccessibility() } }
+            if !store.screenRecordingGranted { Button("Grant Screen Recording") { store.requestScreenRecording() } }
         }.padding().background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
     }
 

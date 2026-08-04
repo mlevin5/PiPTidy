@@ -37,6 +37,30 @@ public enum ScoringMapGenerator {
         return PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs)
     }
 
+    /// Treats wallpaper-only cells as genuinely empty even when a detailed or
+    /// high-contrast desktop image would otherwise look visually important.
+    public static func applyingDesktopClearance(_ map: PlacementMap, windows: [CGWindowSnapshot], excludingPID: pid_t, excludingWindowID: CGWindowID?) -> PlacementMap {
+        let visibleWindows = windows.filter {
+            $0.pid != excludingPID && $0.id != excludingWindowID && $0.frame.intersects(map.bounds)
+        }
+        var covered = [Bool](repeating: false, count: map.width * map.height)
+        let cellWidth = map.bounds.width / CGFloat(map.width)
+        let cellHeight = map.bounds.height / CGFloat(map.height)
+        for window in visibleWindows {
+            let clipped = window.frame.intersection(map.bounds)
+            let minX = max(0, Int((clipped.minX - map.bounds.minX) / cellWidth))
+            let maxX = min(map.width, Int(ceil((clipped.maxX - map.bounds.minX) / cellWidth)))
+            let minY = max(0, Int((clipped.minY - map.bounds.minY) / cellHeight))
+            let maxY = min(map.height, Int(ceil((clipped.maxY - map.bounds.minY) / cellHeight)))
+            for y in minY..<maxY {
+                for x in minX..<maxX { covered[y * map.width + x] = true }
+            }
+        }
+        var costs = map.costs
+        for index in costs.indices where !covered[index] { costs[index] = 0 }
+        return PlacementMap(bounds: map.bounds, width: map.width, height: map.height, costs: costs)
+    }
+
     /// Adds a smooth local penalty around an interaction point. This is deliberately
     /// cheap: it operates on the existing bounded grid and adds no capture work.
     public static func applyingPointPriority(_ map: PlacementMap, point: CGPoint, radius: CGFloat = 140, peakPenalty: Float = 0.65) -> PlacementMap {
