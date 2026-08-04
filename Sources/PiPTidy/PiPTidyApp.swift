@@ -202,7 +202,7 @@ struct SystemScreenCaptureAuthorization {
             while !Task.isCancelled {
                 await refreshInventory()
                 await analyzeOnce(placeWhenReady: true)
-                try? await Task.sleep(for: .seconds(4))
+                try? await Task.sleep(for: .seconds(2))
             }
         }
     }
@@ -278,33 +278,41 @@ struct SystemScreenCaptureAuthorization {
             Button("PiP Tidy Website…") { store.openInfoURL(key: "PiPTidyWebsiteURL") }
             Button("Quit") { NSApplication.shared.terminate(nil) }
         }.menuBarExtraStyle(.menu)
-        Settings { DebugView().environmentObject(store).frame(minWidth: 1050, minHeight: 650) }
+        Settings { DebugView().environmentObject(store).frame(minWidth: 760, minHeight: 560) }
+            .windowResizability(.contentMinSize)
     }
 }
 
 struct DebugView: View {
     @EnvironmentObject var store: WindowStore
     @AppStorage("completedOnboarding") private var completedOnboarding = false
+    @State private var showAllWindows = false
+    private var displayedWindows: [WindowSnapshot] { showAllWindows ? store.windows : store.windows.filter(PiPDetector.isCandidate) }
     var body: some View {
-        VStack(alignment: .leading) {
-            if !completedOnboarding { welcomeCard }
-            permissionBanner
-            HStack { Button("Refresh") { store.refresh() }; Text("Global top-left coordinates in points"); Spacer(); Text("0.2.0 Beta") }.padding(.horizontal)
-            Table(store.windows, selection: $store.selectedID) {
-                TableColumn("App") { Text($0.ax.owner) }
-                TableColumn("Title") { Text($0.ax.title ?? "—") }
-                TableColumn("Role") { Text([$0.ax.role, $0.ax.subrole].compactMap { $0 }.joined(separator: " / ")) }
-                TableColumn("Frame") { Text($0.ax.frame.map { NSStringFromRect($0) } ?? "—") }
-                TableColumn("Move/Resize") { Text("\($0.ax.capabilities.movable == true ? "Y" : "N")/\($0.ax.capabilities.resizable == true ? "Y" : "N")") }
-                TableColumn("CG") { Text($0.cg.map { "#\($0.id) L\($0.layer)" } ?? "ambiguous/unavailable") }
-                TableColumn("Score") { Text(String(format: "%.0f", $0.score.total)).help($0.score.components.map { "\($0.points): \($0.reason)" }.joined(separator: "\n")) }
-            }.frame(minHeight: 300)
-            controls
-            phase2
-            Divider()
-            Text("Recent errors").font(.headline)
-            ForEach(Array(store.errors.prefix(6).enumerated()), id: \.offset) { Text($0.element).foregroundStyle(.red).textSelection(.enabled) }
-        }.padding().background(FloatingSettingsWindow()).onChange(of: store.selectedID) { store.syncGeometryFields() }.onAppear { store.debugWindowVisible=true }.onDisappear { store.debugWindowVisible=false;store.heatmap=nil }
+        ScrollView {
+            VStack(alignment: .leading) {
+                if !completedOnboarding { welcomeCard }
+                permissionBanner
+                HStack { Button("Refresh") { store.refresh() }; Toggle("Show all windows",isOn:$showAllWindows).toggleStyle(.checkbox); Spacer(); Text("0.2.0 Beta") }.padding(.horizontal)
+                if displayedWindows.isEmpty { Text("No Picture-in-Picture windows detected.").foregroundStyle(.secondary).frame(maxWidth:.infinity,minHeight:80) }
+                else {
+                    Table(displayedWindows, selection: $store.selectedID) {
+                        TableColumn("App") { Text($0.ax.owner) }
+                        TableColumn("Title") { Text($0.ax.title ?? "—") }
+                        TableColumn("Role") { Text([$0.ax.role, $0.ax.subrole].compactMap { $0 }.joined(separator: " / ")) }
+                        TableColumn("Frame") { Text($0.ax.frame.map { NSStringFromRect($0) } ?? "—") }
+                        TableColumn("Move/Resize") { Text("\($0.ax.capabilities.movable == true ? "Y" : "N")/\($0.ax.capabilities.resizable == true ? "Y" : "N")") }
+                        TableColumn("CG") { Text($0.cg.map { "#\($0.id) L\($0.layer)" } ?? "ambiguous/unavailable") }
+                        TableColumn("Score") { Text(String(format: "%.0f", $0.score.total)).help($0.score.components.map { "\($0.points): \($0.reason)" }.joined(separator: "\n")) }
+                    }.frame(height:showAllWindows ? 300 : 150)
+                }
+                controls
+                phase2
+                Divider()
+                Text("Recent errors").font(.headline)
+                ForEach(Array(store.errors.prefix(6).enumerated()), id: \.offset) { Text($0.element).foregroundStyle(.red).textSelection(.enabled) }
+            }.padding()
+        }.background(FloatingSettingsWindow()).onChange(of: store.selectedID) { store.syncGeometryFields() }.onAppear { store.debugWindowVisible=true }.onDisappear { store.debugWindowVisible=false;store.heatmap=nil }
     }
 
     var permissionBanner: some View {

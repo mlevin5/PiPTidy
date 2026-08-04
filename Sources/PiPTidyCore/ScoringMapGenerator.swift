@@ -27,13 +27,24 @@ public enum ScoringMapGenerator {
     }
 
     /// Adds a z-order prior. Core Graphics inventory is front-to-back, so compact
-    /// foreground windows cost more to cover; nearly full-display windows are ignored.
+    /// visible foreground windows cost more to cover. Windows hidden behind an
+    /// earlier fullscreen window do not leave stale geometry in the map.
     public static func applyingForegroundPriority(_ map: PlacementMap, windows: [CGWindowSnapshot], excludingPID: pid_t, excludingWindowID: CGWindowID?, clearance: CGFloat = 16) -> PlacementMap {
-        let eligible=windows.filter { $0.pid != excludingPID && $0.id != excludingWindowID && $0.layer == 0 && $0.frame.intersects(map.bounds) && ($0.frame.width*$0.frame.height)/(map.bounds.width*map.bounds.height) < 0.90 }.prefix(4)
-        guard !eligible.isEmpty else{return map}
         let cellWidth=map.bounds.width/CGFloat(map.width),cellHeight=map.bounds.height/CGFloat(map.height)
-        var costs=map.costs
-        for (rank,window) in eligible.enumerated() { let penalty=Float(0.30/Double(rank+1)); let protectedFrame=window.frame.insetBy(dx:-clearance,dy:-clearance); let clipped=protectedFrame.intersection(map.bounds); let minX=max(0,Int((clipped.minX-map.bounds.minX)/cellWidth)),maxX=min(map.width,Int(ceil((clipped.maxX-map.bounds.minX)/cellWidth))); let minY=max(0,Int((clipped.minY-map.bounds.minY)/cellHeight)),maxY=min(map.height,Int(ceil((clipped.maxY-map.bounds.minY)/cellHeight))); for y in minY..<maxY { for x in minX..<maxX { costs[y*map.width+x]=min(1,costs[y*map.width+x]+penalty) } } }
+        var costs=map.costs,occluded=[Bool](repeating:false,count:map.width*map.height),rank=0
+        func cells(for frame:CGRect)->(Int,Int,Int,Int) { let clipped=frame.intersection(map.bounds); return (max(0,Int((clipped.minX-map.bounds.minX)/cellWidth)),min(map.width,Int(ceil((clipped.maxX-map.bounds.minX)/cellWidth))),max(0,Int((clipped.minY-map.bounds.minY)/cellHeight)),min(map.height,Int(ceil((clipped.maxY-map.bounds.minY)/cellHeight)))) }
+        for window in windows {
+            let coverage=(window.frame.width*window.frame.height)/(map.bounds.width*map.bounds.height)
+            guard window.pid != excludingPID,window.id != excludingWindowID,window.frame.intersects(map.bounds),(window.layer == 0 || coverage < 0.90) else{continue}
+            let actual=cells(for:window.frame)
+            if window.layer == 0,coverage < 0.90,rank < 4 {
+                let protected=cells(for:window.frame.insetBy(dx:-clearance,dy:-clearance)),penalty=Float(0.30/Double(rank+1))
+                var hasVisibleCell=false
+                for y in protected.2..<protected.3 { for x in protected.0..<protected.1 where !occluded[y*map.width+x] {costs[y*map.width+x]=min(1,costs[y*map.width+x]+penalty);hasVisibleCell=true} }
+                if hasVisibleCell {rank += 1}
+            }
+            for y in actual.2..<actual.3 {for x in actual.0..<actual.1 {occluded[y*map.width+x]=true}}
+        }
         return PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs)
     }
 
