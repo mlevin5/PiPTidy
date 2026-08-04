@@ -181,9 +181,10 @@ struct SystemScreenCaptureAuthorization {
                 statusMessage = outcome.usedFallback ? "Best available placement · \(Int(result.frame.width))×\(Int(result.frame.height))" : "Placement ready · \(Int(result.frame.width))×\(Int(result.frame.height))"
                 if placeWhenReady {
                     let repeatsRejectedGeometry=lastBrowserConstrainedProposal.map { !PlacementStability.shouldMove(from:$0,to:result.frame,minimumOriginDelta:4,minimumSizeDelta:4) } == true
+                    let currentMeetsSize=frame.width>=minimumSize.width-2 && frame.height>=minimumSize.height-2 && frame.width<=maximumSize.width+2 && frame.height<=maximumSize.height+2
                     let currentIsSafe=PlacementOptimizer.isAcceptable(map:map,frame:frame,minSize:minimumSize,maxSize:maximumSize,costBudget:0.24,highCostThreshold:0.38,maxHighCostFraction:0.025)
                     if hasCompletedInitialPlacement,currentIsSafe { statusMessage = "PiP is still in a safe spot" }
-                    else if hasCompletedInitialPlacement,Date().timeIntervalSince(lastAutomaticMoveAt)<8 { statusMessage = "Holding position briefly to avoid unnecessary movement" }
+                    else if hasCompletedInitialPlacement,currentMeetsSize,Date().timeIntervalSince(lastAutomaticMoveAt)<8 { statusMessage = "Holding position briefly to avoid unnecessary movement" }
                     else if repeatsRejectedGeometry { hasCompletedInitialPlacement=true;statusMessage = "PiP is in the closest position Firefox allows" }
                     else if PlacementStability.shouldMove(from: frame, to: result.frame) { hasCompletedInitialPlacement=true;lastAutomaticMoveAt=Date();apply(result.frame,automatic:true) }
                     else { hasCompletedInitialPlacement=true;statusMessage = "PiP is already in a good spot" }
