@@ -28,18 +28,18 @@ public enum ScoringMapGenerator {
 
     /// Adds a z-order prior. Core Graphics inventory is front-to-back, so compact
     /// foreground windows cost more to cover; nearly full-display windows are ignored.
-    public static func applyingForegroundPriority(_ map: PlacementMap, windows: [CGWindowSnapshot], excludingPID: pid_t, excludingWindowID: CGWindowID?) -> PlacementMap {
+    public static func applyingForegroundPriority(_ map: PlacementMap, windows: [CGWindowSnapshot], excludingPID: pid_t, excludingWindowID: CGWindowID?, clearance: CGFloat = 16) -> PlacementMap {
         let eligible=windows.filter { $0.pid != excludingPID && $0.id != excludingWindowID && $0.layer == 0 && $0.frame.intersects(map.bounds) && ($0.frame.width*$0.frame.height)/(map.bounds.width*map.bounds.height) < 0.90 }.prefix(4)
         guard !eligible.isEmpty else{return map}
         let cellWidth=map.bounds.width/CGFloat(map.width),cellHeight=map.bounds.height/CGFloat(map.height)
         var costs=map.costs
-        for (rank,window) in eligible.enumerated() { let penalty=Float(0.30/Double(rank+1)); let clipped=window.frame.intersection(map.bounds); let minX=max(0,Int((clipped.minX-map.bounds.minX)/cellWidth)),maxX=min(map.width,Int(ceil((clipped.maxX-map.bounds.minX)/cellWidth))); let minY=max(0,Int((clipped.minY-map.bounds.minY)/cellHeight)),maxY=min(map.height,Int(ceil((clipped.maxY-map.bounds.minY)/cellHeight))); for y in minY..<maxY { for x in minX..<maxX { costs[y*map.width+x]=min(1,costs[y*map.width+x]+penalty) } } }
+        for (rank,window) in eligible.enumerated() { let penalty=Float(0.30/Double(rank+1)); let protectedFrame=window.frame.insetBy(dx:-clearance,dy:-clearance); let clipped=protectedFrame.intersection(map.bounds); let minX=max(0,Int((clipped.minX-map.bounds.minX)/cellWidth)),maxX=min(map.width,Int(ceil((clipped.maxX-map.bounds.minX)/cellWidth))); let minY=max(0,Int((clipped.minY-map.bounds.minY)/cellHeight)),maxY=min(map.height,Int(ceil((clipped.maxY-map.bounds.minY)/cellHeight))); for y in minY..<maxY { for x in minX..<maxX { costs[y*map.width+x]=min(1,costs[y*map.width+x]+penalty) } } }
         return PlacementMap(bounds:map.bounds,width:map.width,height:map.height,costs:costs)
     }
 
     /// Treats wallpaper-only cells as genuinely empty even when a detailed or
     /// high-contrast desktop image would otherwise look visually important.
-    public static func applyingDesktopClearance(_ map: PlacementMap, windows: [CGWindowSnapshot], excludingPID: pid_t, excludingWindowID: CGWindowID?) -> PlacementMap {
+    public static func applyingDesktopClearance(_ map: PlacementMap, windows: [CGWindowSnapshot], excludingPID: pid_t, excludingWindowID: CGWindowID?, clearance: CGFloat = 16) -> PlacementMap {
         let visibleWindows = windows.filter {
             let coverage = ($0.frame.width * $0.frame.height) / (map.bounds.width * map.bounds.height)
             return $0.pid != excludingPID && $0.id != excludingWindowID && $0.frame.intersects(map.bounds)
@@ -49,7 +49,7 @@ public enum ScoringMapGenerator {
         let cellWidth = map.bounds.width / CGFloat(map.width)
         let cellHeight = map.bounds.height / CGFloat(map.height)
         for window in visibleWindows {
-            let clipped = window.frame.intersection(map.bounds)
+            let clipped = window.frame.insetBy(dx: -clearance, dy: -clearance).intersection(map.bounds)
             let minX = max(0, Int((clipped.minX - map.bounds.minX) / cellWidth))
             let maxX = min(map.width, Int(ceil((clipped.maxX - map.bounds.minX) / cellWidth)))
             let minY = max(0, Int((clipped.minY - map.bounds.minY) / cellHeight))
