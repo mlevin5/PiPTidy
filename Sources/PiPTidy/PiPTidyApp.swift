@@ -274,12 +274,6 @@ struct SystemScreenCaptureAuthorization {
     @StateObject private var store = WindowStore()
     var body: some Scene {
         MenuBarExtra("PiP Tidy", systemImage: "pip") {
-            Text(store.statusMessage)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(width: 340, alignment: .leading)
-                .help(store.statusMessage)
-            Divider()
             Label(store.accessibilityGranted ? "Accessibility granted" : "Accessibility required", systemImage: store.accessibilityGranted ? "checkmark.circle" : "exclamationmark.triangle")
             Label(store.screenRecordingGranted ? "Screen Recording granted" : "Screen Recording required", systemImage: store.screenRecordingGranted ? "checkmark.circle" : "exclamationmark.triangle")
             if !store.accessibilityGranted { Button("Grant Accessibility…") { store.requestAccessibility() } }
