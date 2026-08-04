@@ -64,11 +64,18 @@ public final class SystemAXService: AXInventoryProviding, WindowMutating, @unche
         }
     }
     public func setFrame(id: String, frame: CGRect) throws {
+        try setFrame(id:id,frame:frame,expectedTitle:nil)
+    }
+    public func setFrame(id: String, frame: CGRect, expectedTitle: String?) throws {
         let parts = id.split(separator: ":")
         guard parts.count == 2, let pid = pid_t(parts[0]), let index = Int(parts[1]) else { throw AccessibilityError.missingAttribute("window id") }
         let root = AXUIElementCreateApplication(pid)
         guard let windows = try attribute(root, kAXWindowsAttribute as CFString, as: [AXUIElement].self), windows.indices.contains(index) else { throw AccessibilityError.missingAttribute("window") }
         let window = windows[index]
+        if let expectedTitle {
+            let currentTitle=try attribute(window,kAXTitleAttribute as CFString,as:String.self)
+            guard currentTitle == expectedTitle else {throw AccessibilityError.missingAttribute("original Picture-in-Picture window")}
+        }
         var origin = frame.origin, dimensions = frame.size
         guard let position = AXValueCreate(.cgPoint, &origin), let sizeValue = AXValueCreate(.cgSize, &dimensions) else { throw AccessibilityError.missingAttribute("geometry") }
         // Move first so an enlargement near a screen edge has room to succeed,

@@ -92,7 +92,7 @@ struct SystemScreenCaptureAuthorization {
                 selectionWasAutoDetected = true
                 statusMessage = "Picture-in-Picture detected"
             } else {
-                if !windows.contains(where: { $0.id == selectedID }) { selectedID = nil }
+                if livePlacementEnabled || selectionWasAutoDetected || !windows.contains(where: { $0.id == selectedID }) { selectedID = nil; temporalState=nil; observedMaximumPiPSize=nil; lastBrowserConstrainedProposal=nil; hasCompletedInitialPlacement=false }
                 selectionWasAutoDetected = false
                 statusMessage = "No Picture-in-Picture window detected"
             }
@@ -110,9 +110,9 @@ struct SystemScreenCaptureAuthorization {
     }
 
     func apply(_ frame: CGRect, automatic: Bool = false) {
-        guard let id = selectedID else { record("Open a Picture-in-Picture window first."); return }
+        guard let target=selected,let id = selectedID else { record("Open a Picture-in-Picture window first."); return }
         do {
-            try ax.setFrame(id: id, frame: frame)
+            try ax.setFrame(id:id,frame:frame,expectedTitle:target.ax.title)
             setGeometryFields(frame)
             updateCachedFrame(id: id, frame: frame)
             statusMessage = "PiP placed at \(Int(frame.minX)), \(Int(frame.minY)) · \(Int(frame.width))×\(Int(frame.height))"

@@ -14,7 +14,8 @@ public enum WindowCorrelator {
     public static func match(_ ax: AXWindowSnapshot, cg: [CGWindowSnapshot], tolerance: CGFloat = 3) -> CGWindowSnapshot? { guard let frame=ax.frame else{return nil}; let candidates=cg.filter{$0.pid==ax.pid && abs($0.frame.minX-frame.minX)<=tolerance && abs($0.frame.minY-frame.minY)<=tolerance && abs($0.frame.width-frame.width)<=tolerance && abs($0.frame.height-frame.height)<=tolerance}; return candidates.count == 1 ? candidates[0] : nil }
 }
 public enum PiPDetector {
-    public static func isCandidate(_ snapshot:WindowSnapshot)->Bool { let normalized=(snapshot.ax.title ?? "").lowercased().replacingOccurrences(of:"-",with:" ").replacingOccurrences(of:"_",with:" "); return normalized.contains("picture in picture") || normalized.trimmingCharacters(in:.whitespacesAndNewlines) == "pip" }
+    public static func isCandidate(_ snapshot:AXWindowSnapshot)->Bool { let normalized=(snapshot.title ?? "").lowercased().replacingOccurrences(of:"-",with:" ").replacingOccurrences(of:"_",with:" "); return normalized.contains("picture in picture") || normalized.trimmingCharacters(in:.whitespacesAndNewlines) == "pip" }
+    public static func isCandidate(_ snapshot:WindowSnapshot)->Bool {isCandidate(snapshot.ax)}
     public static func detect(in windows:[WindowSnapshot])->WindowSnapshot? {
         let titled=windows.filter(isCandidate)
         return titled.sorted { left,right in left.score.total == right.score.total ? left.id < right.id : left.score.total > right.score.total }.first
