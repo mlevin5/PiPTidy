@@ -7,8 +7,18 @@
   display: block;
 }
 
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 32px;
+}
+
 .brand-mark {
-  width: 34px;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  margin-right: 0;
   overflow: hidden;
 }
 
